@@ -1,0 +1,6 @@
+{
+  "name": "NumsGames",
+  "description": "Jeux, émulateurs et applications sur mesure pour calculatrices NumWorks. Commande en ligne, installation rapide et sécurisée.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

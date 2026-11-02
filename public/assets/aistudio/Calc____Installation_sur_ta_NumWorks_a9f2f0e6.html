@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Calc+ – Installation sur ta NumWorks</title>
+<meta name="description" content="Scripts Python, émulateurs et applications installés sur ta NumWorks. Tu la déposes, tu la récupères le lendemain.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;800&family=DM+Mono&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#fff;--ink:#000;--muted:#555;--key:#fff;--line:#000;--accent:#000;--accent-ink:#fff;--lcd:#fff;--lcd-ink:#000}
+*{box-sizing:border-box}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font:17px/1.6 Inter,system-ui,sans-serif}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.wrap{max-width:880px;margin:0 auto;padding:0 20px}
+h1,h2{line-height:1.1;margin:0;font-family:Inter,system-ui,sans-serif}
+h1{font-size:clamp(2.1rem,7vw,3.6rem);font-weight:800;letter-spacing:-.02em;margin-bottom:14px}
+h2{font-size:1.5rem;font-weight:800;margin-bottom:12px}
+p{margin:0 0 12px;max-width:62ch}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.top{padding:22px 0 6px;font-weight:800;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.top .tag{font-weight:500;color:var(--muted);font-size:.9rem}
+.top a{text-decoration:none;font-weight:500;color:var(--muted)}
+.lead{color:var(--muted);font-size:1.1rem}
+section{padding:24px 0}
+.hero{padding:30px 0 8px}
+[hidden]{display:none!important}
+
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:6px}
+.tile{aspect-ratio:1/1;display:flex;flex-direction:column;justify-content:space-between;text-decoration:none;background:var(--key);border:2px solid var(--line);border-bottom-width:7px;border-radius:22px;padding:18px;transition:transform .12s,border-color .12s}
+.tile:hover{border-color:var(--accent);transform:translateY(-3px)}
+.tile:active{transform:translateY(2px)}
+.badge{align-self:flex-start;background:var(--lcd);color:var(--lcd-ink);font:15px "DM Mono",ui-monospace,monospace;padding:6px 12px;border-radius:9px;box-shadow:inset 0 2px 5px rgba(0,0,0,.2)}
+.tile strong{display:block;font-family:Inter,system-ui,sans-serif;font-size:clamp(1.15rem,3.4vw,1.6rem);line-height:1.15}
+.tile small{display:block;color:var(--muted);font-size:.92rem;margin-top:6px}
+
+.steps{display:grid;gap:14px;grid-template-columns:repeat(3,1fr);padding:0;list-style:none;margin:0;counter-reset:s}
+.steps li{counter-increment:s;background:var(--key);border:1px solid var(--line);border-radius:14px;padding:16px}
+.steps li::before{content:counter(s);display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-weight:800;margin-bottom:10px}
+.steps b{display:block;margin-bottom:4px}
+.steps span{color:var(--muted);font-size:.95rem}
+.rules{background:var(--key);border:1px solid var(--line);border-radius:14px;padding:16px 20px}
+.rules ul{margin:8px 0 0;padding-left:20px}
+
+.prix{font-weight:800;margin:0 0 18px}
+.chips{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 18px}
+.chip{font:inherit;font-weight:500;background:var(--key);color:var(--ink);border:2px solid var(--line);border-radius:999px;padding:8px 16px;cursor:pointer}
+.chip[aria-pressed=true]{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 20%,var(--key))}
+form{display:grid;gap:14px}
+.row{display:grid;gap:14px;grid-template-columns:1fr 1fr}
+label.f{display:grid;gap:5px;font-weight:800;font-size:.95rem}
+.hint{color:var(--muted);font-size:.9rem;font-weight:500}
+input[type=text],textarea{font:inherit;font-weight:500;color:var(--ink);background:var(--key);border:2px solid var(--line);border-radius:12px;padding:12px 14px;width:100%}
+textarea{min-height:84px;resize:vertical}
+.lcd{background:var(--lcd);color:var(--lcd-ink);border-radius:14px;padding:16px 18px;font:15px/1.7 "DM Mono",ui-monospace,monospace;border:3px solid #000;box-shadow:inset 0 3px 8px rgba(0,0,0,.18);min-height:110px;overflow-wrap:anywhere}
+.lcd .dim{opacity:.55}
+button.go{font:inherit;font-weight:800;cursor:pointer;background:var(--accent);color:var(--accent-ink);border:0;border-bottom:4px solid #000;border-radius:14px;padding:15px 24px;justify-self:start}
+button.go:active{transform:translateY(2px);border-bottom-width:2px}
+button.go:disabled{opacity:.6;cursor:wait}
+.hp{position:absolute;left:-9999px}
+footer{padding:12px 0 40px;color:var(--muted);font-size:.9rem}
+@media (max-width:640px){
+  .tiles{grid-template-columns:1fr}
+  .tile{aspect-ratio:auto;min-height:150px}
+  .steps,.row{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="top"><a href="#">Calc+ <span class="tag">(nom provisoire)</span></a></div>
+
+<!-- ACCUEIL -->
+<main id="home">
+  <div class="hero">
+    <h1>Ta NumWorks, avec plus de choses dedans.</h1>
+    <p class="lead">Choisis ce que tu veux installer. Tu me donnes ta calculatrice, tu la récupères le lendemain.</p>
+  </div>
+
+  <section style="padding-top:12px">
+    <nav class="tiles" aria-label="Catégories">
+      <a class="tile t1" href="#python"><span class="badge">&gt; py_</span><div><strong>Scripts Python</strong><small>Des programmes prêts à utiliser</small></div></a>
+      <a class="tile t2" href="#emulateurs"><span class="badge">&gt; emu_</span><div><strong>Émulateurs</strong><small>D’autres programmes sur ta NumWorks</small></div></a>
+      <a class="tile t3" href="#applications"><span class="badge">&gt; app_</span><div><strong>Applications</strong><small>Des applis à ajouter</small></div></a>
+    </nav>
+  </section>
+
+</main>
+
+<!-- PAGES DE CATÉGORIE -->
+<main id="python" data-title="Scripts Python" hidden>
+  <h1>Scripts Python</h1>
+  <p class="lead">Des programmes Python prêts à utiliser sur ta NumWorks.</p>
+  <p class="prix">Prix : à définir</p>
+</main>
+<main id="emulateurs" data-title="Émulateurs" hidden>
+  <h1>Émulateurs</h1>
+  <p class="lead">Pour faire tourner d’autres programmes sur ta NumWorks.</p>
+  <p class="prix">Prix : à définir</p>
+</main>
+<main id="applications" data-title="Applications" hidden>
+  <h1>Applications</h1>
+  <p class="lead">Des applications à ajouter à ta NumWorks.</p>
+  <p class="prix">Prix : à définir</p>
+</main>
+
+<!-- Formulaire commun, affiché sous la catégorie choisie -->
+<section id="order-block" hidden>
+  <div class="chips" id="chips" aria-label="Choix rapide"></div>
+  <form id="order" action="#" method="post">
+    <input type="hidden" name="categorie" id="cat-field" value="">
+    <input type="hidden" name="_subject" value="Nouvelle commande Calc+">
+    <div class="row">
+      <label class="f">Prénom <input type="text" name="prenom" autocomplete="given-name" required></label>
+      <label class="f">Nom <input type="text" name="nom" autocomplete="family-name" required></label>
+    </div>
+    <label class="f">Ce que tu veux
+      <textarea name="demande" placeholder="Dis-moi ce que tu veux installer" required></textarea></label>
+    <label class="f">Classe <span class="hint">(facultatif)</span> <input type="text" name="classe"></label>
+    <input class="hp" type="text" name="_gotcha" tabindex="-1" autocomplete="off" aria-hidden="true">
+    <div>
+      <h2>Comment ça marche</h2>
+      <ol class="steps">
+        <li><b>Tu choisis et tu commandes</b><span>Remplis ta commande ci-dessus.</span></li>
+        <li><b>Tu me donnes ta calculatrice</b><span>Tu paies à ce moment-là, en main propre.</span></li>
+        <li><b>Tu la récupères le lendemain</b><span>Tout est installé et testé.</span></li>
+      </ol>
+    </div>
+    <div class="lcd" id="lcd" role="status" aria-live="polite"></div>
+    <button class="go" type="submit" id="send">Envoyer ma commande</button>
+  </form>
+</section>
+
+<section id="rules-block" hidden>
+  <div class="rules">
+    <b>Avant de me donner ta calculatrice</b>
+    <ul>
+      <li>Écris ton nom et ton prénom dessus (étiquette ou scotch).</li>
+      <li>Tu paies en main propre, au moment où tu me la donnes.</li>
+      <li>Je te la rends le lendemain.</li>
+      <li>J’installe seulement des logiciels gratuits ou autorisés, et rien qui serve à tricher en contrôle.</li>
+    </ul>
+  </div>
+</section>
+
+</div>
+
+<script>
+// ⚙️ À modifier une fois : l’adresse Formspree reçue après avoir créé ton formulaire
+const ENDPOINT = "https://formspree.io/f/TON_ID";
+
+// ✏️ Noms de ce que tu proposes, par catégorie (apparaissent comme boutons à cliquer)
+const ITEMS = {
+  python: [],
+  emulateurs: [],
+  applications: []
+};
+
+const homeEl = document.getElementById("home");
+const orderBlock = document.getElementById("order-block");
+const rulesBlock = document.getElementById("rules-block");
+const categories = ["python", "emulateurs", "applications"];
+const form = document.getElementById("order");
+const lcd = document.getElementById("lcd");
+const btn = document.getElementById("send");
+const chipsBox = document.getElementById("chips");
+const catField = document.getElementById("cat-field");
+
+function line(text, dim){
+  const d = document.createElement("div");
+  if(dim) d.className = "dim";
+  d.textContent = text;
+  return d;
+}
+function summary(){
+  const f = new FormData(form);
+  const nom = [f.get("nom"), f.get("prenom")].map(s => (s||"").trim()).filter(Boolean).join(" ");
+  const d = (f.get("demande")||"").trim();
+  lcd.replaceChildren(
+    line("> " + f.get("categorie")),
+    line(nom ? "> " + nom : "> Nom Prénom...", !nom),
+    line(d ? "> " + d : "> Ta demande...", !d)
+  );
+}
+form.addEventListener("input", summary);
+
+function buildChips(cat){
+  chipsBox.replaceChildren();
+  (ITEMS[cat] || []).forEach(name => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.textContent = name;
+    b.setAttribute("aria-pressed", "false");
+    b.addEventListener("click", () => {
+      b.setAttribute("aria-pressed", String(b.getAttribute("aria-pressed") !== "true"));
+      const picked = [...chipsBox.querySelectorAll("[aria-pressed=true]")].map(x => x.textContent);
+      form.elements["demande"].value = picked.join(", ");
+      summary();
+    });
+    chipsBox.appendChild(b);
+  });
+  chipsBox.hidden = chipsBox.children.length === 0;
+}
+
+function route(){
+  const id = location.hash.slice(1);
+  const isCat = categories.includes(id);
+  const pages = document.querySelectorAll("main[id]");
+  pages.forEach(p => p.hidden = p.id !== "home" ? p.id !== id : true);
+  homeEl.hidden = isCat;
+  orderBlock.hidden = !isCat;
+  rulesBlock.hidden = !isCat;
+  if(isCat){
+    catField.value = document.getElementById(id).dataset.title;
+    buildChips(id);
+    form.reset();
+    summary();
+    document.title = catField.value + " – Calc+";
+  } else {
+    document.title = "Calc+ – Installation sur ta NumWorks";
+  }
+  window.scrollTo(0, 0);
+}
+window.addEventListener("hashchange", route);
+route();
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if(ENDPOINT.includes("TON_ID")){
+    lcd.replaceChildren(line("> Formulaire pas encore connecté"), line("> Ajoute ton adresse Formspree", true));
+    return;
+  }
+  btn.disabled = true;
+  try{
+    const r = await fetch(ENDPOINT, {method:"POST", body:new FormData(form), headers:{Accept:"application/json"}});
+    if(!r.ok) throw new Error();
+    form.reset();
+    summary();
+    lcd.replaceChildren(line("> Commande envoyée !"), line("> Je te réponds vite."), line("> Écris ton nom sur la calculatrice.", true));
+  }catch(err){
+    lcd.replaceChildren(line("> Erreur d’envoi"), line("> Réessaie dans un instant.", true));
+  }
+  btn.disabled = false;
+});
+</script>
+</body>
+</html>
