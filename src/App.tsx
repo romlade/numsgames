@@ -204,15 +204,36 @@ export async function sendOrderEmailNotification(
   };
 }
 
-// --- NOTIFICATIONS INSTANTANÉES TELEGRAM BOT (@NumsGames_bot) ---
-export const TELEGRAM_BOT_TOKEN = '9103740677:AAFfF7lvCNNuLTcvpzyifponFNmNSMx1L9g';
-export const DEFAULT_TELEGRAM_CHAT_ID = '8305493071';
+// --- NOTIFICATIONS INSTANTANÉES TELEGRAM BOT ---
+export function getSavedTelegramToken(): string {
+  try {
+    return (
+      localStorage.getItem('numsgames_telegram_token') ||
+      (import.meta.env.VITE_TELEGRAM_BOT_TOKEN as string) ||
+      ''
+    );
+  } catch {
+    return '';
+  }
+}
+
+export function saveTelegramToken(token: string): void {
+  try {
+    localStorage.setItem('numsgames_telegram_token', token.trim());
+  } catch (e) {
+    console.error(e);
+  }
+}
 
 export function getSavedTelegramChatId(): string {
   try {
-    return localStorage.getItem('numsgames_telegram_chat_id') || DEFAULT_TELEGRAM_CHAT_ID;
+    return (
+      localStorage.getItem('numsgames_telegram_chat_id') ||
+      (import.meta.env.VITE_TELEGRAM_CHAT_ID as string) ||
+      ''
+    );
   } catch {
-    return DEFAULT_TELEGRAM_CHAT_ID;
+    return '';
   }
 }
 
@@ -226,11 +247,14 @@ export function saveTelegramChatId(chatId: string): void {
 
 export async function sendTelegramOrderNotification(
   order: StoredOrder,
-  customChatId?: string
+  customChatId?: string,
+  customToken?: string
 ): Promise<{ success: boolean; message?: string }> {
+  const token = (customToken && customToken.trim()) ? customToken.trim() : getSavedTelegramToken();
   const chatId = (customChatId && customChatId.trim()) ? customChatId.trim() : getSavedTelegramChatId();
-  if (!chatId) {
-    return { success: false, message: 'Aucun Chat ID Telegram configuré.' };
+
+  if (!token || !chatId) {
+    return { success: false, message: 'Configuration Telegram manquante (Token ou Chat ID).' };
   }
 
   try {
@@ -247,7 +271,7 @@ export async function sendTelegramOrderNotification(
       `━━━━━━━━━━━━━━━━━━━━\n` +
       `🔗 [Consulter NumsGames](https://romlade.github.io/numsgames/)`;
 
-    const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -362,7 +386,9 @@ export default function App() {
   const [web3KeyInput, setWeb3KeyInput] = useState(() => getSavedWeb3Key());
   const [web3KeySavedMsg, setWeb3KeySavedMsg] = useState('');
   const [showTelegramSetup, setShowTelegramSetup] = useState(false);
+  const [telegramTokenInput, setTelegramTokenInput] = useState(() => getSavedTelegramToken());
   const [telegramChatId, setTelegramChatId] = useState(() => getSavedTelegramChatId());
+  const [showTelegramTokenMask, setShowTelegramTokenMask] = useState(false);
   const [telegramStatusMsg, setTelegramStatusMsg] = useState('');
   const [isCheckingTelegram, setIsCheckingTelegram] = useState(false);
   const [lastTestOrder, setLastTestOrder] = useState<StoredOrder | null>(null);
@@ -458,20 +484,26 @@ export default function App() {
   };
 
   const handleDetectTelegram = async () => {
+    const token = telegramTokenInput.trim() || getSavedTelegramToken();
+    if (!token) {
+      setTelegramStatusMsg("⚠️ Veuillez d'abord renseigner le Token de votre bot Telegram ci-dessous.");
+      return;
+    }
     setIsCheckingTelegram(true);
-    setTelegramStatusMsg("Recherche de messages sur le bot Telegram...");
+    setTelegramStatusMsg("Recherche de messages sur votre bot Telegram...");
     try {
-      const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates`);
+      const res = await fetch(`https://api.telegram.org/bot${token}/getUpdates`);
       const data = await res.json();
       if (data.ok && Array.isArray(data.result) && data.result.length > 0) {
         const lastUpdate = data.result[data.result.length - 1];
         const foundChatId = String(lastUpdate.message?.chat?.id || lastUpdate.my_chat_member?.chat?.id || '');
         const foundName = lastUpdate.message?.chat?.first_name || lastUpdate.message?.chat?.username || 'Roman';
         if (foundChatId) {
+          saveTelegramToken(token);
           saveTelegramChatId(foundChatId);
           setTelegramChatId(foundChatId);
           setTelegramStatusMsg(`✅ Compte de ${foundName} connecté (Chat ID: ${foundChatId}) ! Message test en cours d'envoi...`);
-          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+          await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -484,28 +516,31 @@ export default function App() {
           return;
         }
       }
-      setTelegramStatusMsg("⚠️ Aucun message reçu pour l'instant. Ouvrez Telegram, cherchez @NumsGames_bot et cliquez sur 'Démarrer' (ou envoyez /start), puis réessayez !");
+      setTelegramStatusMsg("⚠️ Aucun message reçu pour l'instant. Ouvrez Telegram, envoyez /start à votre bot, puis réessayez !");
     } catch (err) {
       setTelegramStatusMsg(`Erreur : ${String(err)}`);
     }
     setIsCheckingTelegram(false);
   };
 
-  const handleSaveTelegramChatId = (e: React.FormEvent) => {
+  const handleSaveTelegramConfig = (e: React.FormEvent) => {
     e.preventDefault();
-    const cleaned = telegramChatId.trim();
-    saveTelegramChatId(cleaned);
-    setTelegramStatusMsg(cleaned ? `✅ Chat ID ${cleaned} enregistré !` : 'Chat ID réinitialisé.');
+    const cleanedToken = telegramTokenInput.trim();
+    const cleanedChatId = telegramChatId.trim();
+    saveTelegramToken(cleanedToken);
+    saveTelegramChatId(cleanedChatId);
+    setTelegramStatusMsg(cleanedToken ? `✅ Configuration Telegram enregistrée localement !` : 'Configuration réinitialisée.');
     setTimeout(() => setTelegramStatusMsg(''), 4000);
-    if (cleaned) {
-      handleTestTelegramNotification(cleaned);
+    if (cleanedToken && cleanedChatId) {
+      handleTestTelegramNotification(cleanedChatId, cleanedToken);
     }
   };
 
-  const handleTestTelegramNotification = async (overrideChatId?: string) => {
+  const handleTestTelegramNotification = async (overrideChatId?: string, overrideToken?: string) => {
+    const targetToken = overrideToken || telegramTokenInput.trim() || getSavedTelegramToken();
     const targetChat = overrideChatId || telegramChatId.trim() || getSavedTelegramChatId();
-    if (!targetChat) {
-      setTelegramStatusMsg("⚠️ Aucun Chat ID Telegram configuré. Cliquez d'abord sur 'Détecter mon compte' ou saisissez votre Chat ID.");
+    if (!targetToken || !targetChat) {
+      setTelegramStatusMsg("⚠️ Token ou Chat ID manquant. Renseignez-les ci-dessous et cliquez sur Enregistrer.");
       return;
     }
     setTelegramStatusMsg("Envoi d'un message test sur Telegram...");
@@ -521,7 +556,7 @@ export default function App() {
       date: new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
       status: 'En attente',
     };
-    const res = await sendTelegramOrderNotification(testOrder, targetChat);
+    const res = await sendTelegramOrderNotification(testOrder, targetChat, targetToken);
     if (res.success) {
       setTelegramStatusMsg("✅ Message envoyé avec succès sur votre Telegram ! Vérifiez votre application.");
     } else {
@@ -2188,40 +2223,67 @@ export default function App() {
                           </span>
                         </div>
                         <h4 className="text-xs font-black text-black mb-1">
-                          2. Lier votre compte
+                          2. Configuration sécurisée (privée)
                         </h4>
                         <p className="text-[11px] text-neutral-700 mb-2 leading-relaxed">
-                          Une fois que vous avez envoyé <code>/start</code> au bot, cliquez sur le bouton ci-dessous pour le relier automatiquement :
+                          Vos identifiants restent stockés localement sur cet appareil et ne sont jamais exposés publiquement sur GitHub.
                         </p>
                       </div>
 
-                      <div className="space-y-2">
-                        <button
-                          type="button"
-                          disabled={isCheckingTelegram}
-                          onClick={handleDetectTelegram}
-                          className="w-full px-3 py-2 bg-black hover:bg-neutral-800 disabled:opacity-50 text-white font-black text-xs rounded-lg flex items-center justify-center gap-1.5 shadow-[1px_1px_0px_rgba(0,0,0,0.3)] cursor-pointer"
-                        >
-                          <Send className="w-3.5 h-3.5 text-amber-400" />
-                          <span>{isCheckingTelegram ? 'Détection en cours...' : 'Détecter automatiquement mon compte Telegram'}</span>
-                        </button>
+                      <form onSubmit={handleSaveTelegramConfig} className="space-y-2">
+                        <div>
+                          <div className="flex items-center justify-between mb-0.5">
+                            <label className="text-[10px] font-mono font-bold text-neutral-600 uppercase">
+                              Token du Bot Telegram :
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => setShowTelegramTokenMask(!showTelegramTokenMask)}
+                              className="text-[10px] text-sky-800 hover:text-black font-semibold underline cursor-pointer"
+                            >
+                              {showTelegramTokenMask ? 'Masquer' : 'Afficher'}
+                            </button>
+                          </div>
+                          <input
+                            type={showTelegramTokenMask ? 'text' : 'password'}
+                            value={telegramTokenInput}
+                            onChange={(e) => setTelegramTokenInput(e.target.value)}
+                            placeholder="Ex: 123456789:ABCdefGHIjklMNO..."
+                            className="w-full px-2.5 py-1.5 bg-neutral-50 border-2 border-black rounded-lg text-xs font-mono"
+                          />
+                        </div>
 
-                        <form onSubmit={handleSaveTelegramChatId} className="flex gap-2">
+                        <div>
+                          <label className="text-[10px] font-mono font-bold text-neutral-600 uppercase block mb-0.5">
+                            Votre Chat ID Telegram :
+                          </label>
                           <input
                             type="text"
                             value={telegramChatId}
                             onChange={(e) => setTelegramChatId(e.target.value)}
-                            placeholder="Ou collez votre Chat ID..."
-                            className="flex-1 px-2.5 py-1.5 bg-neutral-50 border-2 border-black rounded-lg text-xs font-mono"
+                            placeholder="Ex: 8305493071"
+                            className="w-full px-2.5 py-1.5 bg-neutral-50 border-2 border-black rounded-lg text-xs font-mono"
                           />
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-1">
                           <button
                             type="submit"
-                            className="px-3 py-1.5 bg-neutral-200 hover:bg-neutral-300 text-black border-2 border-black font-black text-xs rounded-lg cursor-pointer"
+                            className="flex-1 px-3 py-1.5 bg-black hover:bg-neutral-800 text-white font-black text-xs rounded-lg cursor-pointer shadow-[1px_1px_0px_rgba(0,0,0,0.3)]"
                           >
                             Sauvegarder
                           </button>
-                        </form>
-                      </div>
+                          <button
+                            type="button"
+                            disabled={isCheckingTelegram}
+                            onClick={handleDetectTelegram}
+                            className="px-3 py-1.5 bg-sky-200 hover:bg-sky-300 text-black border-2 border-black font-black text-xs rounded-lg cursor-pointer"
+                            title="Récupérer automatiquement votre Chat ID après avoir cliqué sur Démarrer"
+                          >
+                            {isCheckingTelegram ? 'Détection...' : 'Détecter Chat ID'}
+                          </button>
+                        </div>
+                      </form>
                     </div>
                   </div>
 
