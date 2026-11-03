@@ -34,8 +34,130 @@ import { CategoryKey, StoredOrder } from './types';
 
 export const NOTIFICATION_EMAIL = 'roman.lagardefrance@gmail.com';
 
+export function getSavedWeb3Key(): string {
+  try {
+    return localStorage.getItem('numsgames_web3forms_key') || '';
+  } catch {
+    return '';
+  }
+}
+
+export function saveWeb3Key(key: string): void {
+  try {
+    localStorage.setItem('numsgames_web3forms_key', key.trim());
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+export function createGmailComposeUrl(order: StoredOrder): string {
+  const subject = encodeURIComponent(`[NumsGames] Commande #${order.ticketId} - ${order.prenom} ${order.nom}`);
+  const body = encodeURIComponent(
+    `NOUVELLE COMMANDE NUMSGAMES\n` +
+    `----------------------------------------\n` +
+    `Numéro de Ticket : #${order.ticketId}\n` +
+    `Élève : ${order.prenom} ${order.nom}\n` +
+    `Catégorie : ${order.categoryTitle}\n` +
+    `Jeux / Programmes : ${order.items.join(', ')}\n` +
+    `Montant estimé : ${order.totalPrice}\n` +
+    `Précision : ${order.demandeLibre || 'Aucune'}\n` +
+    `Date : ${order.date}\n` +
+    `Statut : ${order.status}\n` +
+    `----------------------------------------\n` +
+    `Accéder aux commandes : https://romlade.github.io/numsgames/`
+  );
+  return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(NOTIFICATION_EMAIL)}&su=${subject}&body=${body}`;
+}
+
+export function createMailtoUrl(order: StoredOrder): string {
+  const subject = encodeURIComponent(`[NumsGames] Commande #${order.ticketId} - ${order.prenom} ${order.nom}`);
+  const body = encodeURIComponent(
+    `Ticket #${order.ticketId} - Élève : ${order.prenom} ${order.nom}\nCatégorie : ${order.categoryTitle}\nArticles : ${order.items.join(', ')}\nPrix : ${order.totalPrice}`
+  );
+  return `mailto:${NOTIFICATION_EMAIL}?subject=${subject}&body=${body}`;
+}
+
 // Envoi automatique d'un e-mail récapitulatif dès réception d'une commande
-export async function sendOrderEmailNotification(order: StoredOrder): Promise<{ success: boolean; message?: string }> {
+export async function sendOrderEmailNotification(
+  order: StoredOrder,
+  customKey?: string
+): Promise<{ success: boolean; is522?: boolean; provider?: 'shipmyform' | 'web3forms' | 'formsubmit'; message?: string }> {
+  const web3Key = customKey !== undefined ? customKey : getSavedWeb3Key();
+
+  // 1. Envoi prioritaire via Web3Forms si l'utilisateur a renseigné sa propre clé
+  if (web3Key && web3Key.trim()) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const res = await fetch('https://api.web3forms.com/submit', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          access_key: web3Key.trim(),
+          subject: `[NumsGames] Nouvelle commande #${order.ticketId} - ${order.prenom} ${order.nom}`,
+          from_name: 'NumsGames',
+          email: NOTIFICATION_EMAIL,
+          'Numéro de Ticket': `#${order.ticketId}`,
+          'Élève': `${order.prenom} ${order.nom}`,
+          'Catégorie': order.categoryTitle,
+          'Programmes': order.items.join(', '),
+          'Montant estimé': order.totalPrice,
+          'Précision': order.demandeLibre || 'Aucune',
+          'Date': order.date,
+          'Statut': order.status,
+          message: `Ticket #${order.ticketId}\nÉlève : ${order.prenom} ${order.nom}\nCatégorie : ${order.categoryTitle}\nProgrammes : ${order.items.join(', ')}\nMontant : ${order.totalPrice}\nDate : ${order.date}`,
+        }),
+      });
+      clearTimeout(timeoutId);
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        return { success: true, provider: 'web3forms' };
+      }
+    } catch (err: unknown) {
+      console.warn('Erreur Web3Forms:', err);
+    }
+  }
+
+  // 2. Envoi automatique immédiat via ShipMyForm (zéro configuration, sans clé, sans panne 522)
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const shipPayload = {
+      _subject: `[NumsGames] Commande #${order.ticketId} - ${order.prenom} ${order.nom}`,
+      Ticket: `#${order.ticketId}`,
+      Eleve: `${order.prenom} ${order.nom}`,
+      Categorie: order.categoryTitle,
+      Programmes: order.items.join(', '),
+      Montant: order.totalPrice,
+      Precision: order.demandeLibre || 'Aucune',
+      Date: order.date,
+      Statut: order.status,
+      Message: `Nouvelle commande NumsGames :\nTicket: #${order.ticketId}\nÉlève: ${order.prenom} ${order.nom}\nCatégorie: ${order.categoryTitle}\nArticles: ${order.items.join(', ')}\nPrix: ${order.totalPrice}\nDate: ${order.date}`,
+    };
+
+    const res = await fetch(`https://shipmyform.com/to/${NOTIFICATION_EMAIL}`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(shipPayload),
+    });
+    clearTimeout(timeoutId);
+
+    if (res.ok) {
+      return { success: true, provider: 'shipmyform' };
+    }
+  } catch (err: unknown) {
+    console.warn('Erreur ShipMyForm:', err);
+  }
+
+  // 3. Secours via FormSubmit (protégé par timeout 4s contre l'erreur 522)
   try {
     const payload = {
       _subject: `[NumsGames] Nouvelle commande #${order.ticketId} - ${order.prenom} ${order.nom}`,
@@ -51,24 +173,31 @@ export async function sendOrderEmailNotification(order: StoredOrder): Promise<{ 
       'Statut': order.status,
     };
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
+
     const res = await fetch(`https://formsubmit.co/ajax/${NOTIFICATION_EMAIL}`, {
       method: 'POST',
+      signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
       body: JSON.stringify(payload),
     });
+    clearTimeout(timeoutId);
 
     if (res.ok) {
-      return { success: true };
+      return { success: true, provider: 'formsubmit' };
     }
-    const data = await res.json().catch(() => ({}));
-    return { success: false, message: data.message || 'Erreur d\'envoi' };
-  } catch (err) {
-    console.warn('Erreur transmission email notification:', err);
-    return { success: false, message: String(err) };
+  } catch (err: unknown) {
+    console.warn('Erreur FormSubmit:', err);
   }
+
+  return {
+    success: false,
+    message: 'Les serveurs relais d\'e-mail n\'ont pas répondu. Utilisez le bouton direct Gmail.',
+  };
 }
 
 // Bip sonore discret prévenant Roman quand une commande arrive en direct
@@ -160,6 +289,9 @@ export default function App() {
   const [emailStatusMsg, setEmailStatusMsg] = useState('');
   const [isSendingEmailTest, setIsSendingEmailTest] = useState(false);
   const [showEmailSetup, setShowEmailSetup] = useState(false);
+  const [web3KeyInput, setWeb3KeyInput] = useState(() => getSavedWeb3Key());
+  const [web3KeySavedMsg, setWeb3KeySavedMsg] = useState('');
+  const [lastTestOrder, setLastTestOrder] = useState<StoredOrder | null>(null);
   const isFirstFirestoreLoadRef = useRef(true);
 
   // Synchronisation en temps réel via Firestore onSnapshot
@@ -206,7 +338,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  const handleTestEmailNotification = async () => {
+  const handleTestEmailNotification = async (overrideKey?: string) => {
     setIsSendingEmailTest(true);
     setEmailStatusMsg(`Envoi de l'e-mail de test vers ${NOTIFICATION_EMAIL}...`);
     const now = new Date();
@@ -228,18 +360,27 @@ export default function App() {
       date: dateStr,
       status: 'En attente',
     };
+    setLastTestOrder(testOrder);
 
-    const res = await sendOrderEmailNotification(testOrder);
+    const res = await sendOrderEmailNotification(testOrder, overrideKey);
     setIsSendingEmailTest(false);
     if (res.success) {
-      setEmailStatusMsg(`✅ E-mail envoyé avec succès à ${NOTIFICATION_EMAIL} ! Vérifiez votre boîte de réception ou vos spams.`);
+      setEmailStatusMsg(`✅ E-mail envoyé automatiquement à ${NOTIFICATION_EMAIL} ! Vérifiez votre boîte de réception ou vos spams.`);
     } else {
       setShowEmailSetup(true);
-      setEmailStatusMsg(`⚠️ FormSubmit : ${res.message || 'Validation requise'}. Suivez les 3 étapes ci-dessous pour déclencher le lien.`);
+      setEmailStatusMsg(`⚠️ ${res.message || 'Validation requise'}. Cliquez sur le bouton Gmail direct.`);
     }
-    setTimeout(() => {
-      setEmailStatusMsg('');
-    }, 10000);
+  };
+
+  const handleSaveWeb3Key = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleaned = web3KeyInput.trim();
+    saveWeb3Key(cleaned);
+    setWeb3KeySavedMsg(cleaned ? '✅ Clé Web3Forms enregistrée ! Test d\'envoi en cours...' : 'Clé réinitialisée.');
+    setTimeout(() => setWeb3KeySavedMsg(''), 4000);
+    if (cleaned) {
+      handleTestEmailNotification(cleaned);
+    }
   };
 
   const handlePinDigit = (digit: string) => {
@@ -1496,7 +1637,7 @@ export default function App() {
                   <button
                     type="button"
                     disabled={isSendingEmailTest}
-                    onClick={handleTestEmailNotification}
+                    onClick={() => handleTestEmailNotification()}
                     className="px-3 py-1.5 rounded-xl bg-amber-200 hover:bg-amber-300 text-black border-2 border-black text-xs font-black flex items-center gap-1.5 shadow-[1px_1px_0px_#000] transition-colors cursor-pointer"
                     title={`Envoyer un e-mail de test à ${NOTIFICATION_EMAIL}`}
                   >
@@ -1546,7 +1687,7 @@ export default function App() {
                     <div className="flex items-center gap-2">
                       <Mail className="w-5 h-5 text-amber-700" />
                       <h3 className="text-sm font-black text-black">
-                        Pourquoi vous ne recevez pas encore d'e-mail & Où est le lien ?
+                        Configuration des alertes e-mail vers {NOTIFICATION_EMAIL}
                       </h3>
                     </div>
                     <button
@@ -1558,109 +1699,178 @@ export default function App() {
                     </button>
                   </div>
 
-                  <p className="text-xs text-neutral-800 mb-3 leading-relaxed">
-                    <strong>Explication :</strong> FormSubmit exige une confirmation de sécurité <em>unique</em> pour l'adresse <strong>{NOTIFICATION_EMAIL}</strong>. Tant que vous n'avez pas cliqué sur leur lien de confirmation, FormSubmit rejette silencieusement les e-mails automatiques. Voici les 3 étapes rapides pour débloquer :
-                  </p>
+                  {/* Explication de l'Erreur 522 Cloudflare */}
+                  <div className="mb-4 p-3 bg-rose-50 border-2 border-rose-300 rounded-xl text-xs text-rose-950 flex flex-col gap-1.5 shadow-[1px_1px_0px_#000]">
+                    <div className="flex items-center gap-1.5 font-black text-rose-900 text-xs">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-rose-700" />
+                      <span>Explication de l'erreur « Connection timed out Error code 522 » :</span>
+                    </div>
+                    <p className="leading-relaxed">
+                      L'erreur <strong>522</strong> est renvoyée par Cloudflare lorsque les serveurs de <strong>FormSubmit.co</strong> sont temporairement <strong>en panne ou surchargés</strong> (leur serveur ne répond pas dans les temps). Ce n'est <strong>PAS</strong> un bug de votre site NumsGames.
+                    </p>
+                    <p className="leading-relaxed font-bold">
+                      💡 Pour ne plus jamais subir ces pannes, utilisez <strong>Web3Forms</strong> ci-dessous (100% gratuit, configuré en 15 secondes, aucune coupure) ou consultez vos commandes en direct sur votre écran !
+                    </p>
+                  </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    {/* Étape 1 */}
-                    <div className="p-3 bg-white rounded-xl border-2 border-black shadow-[2px_2px_0px_#000] flex flex-col justify-between">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                    {/* OPTION 1 : Web3Forms (Recommandé, fiable et sans 522) */}
+                    <div className="p-3.5 bg-white rounded-xl border-2 border-black shadow-[2px_2px_0px_#000] flex flex-col justify-between">
                       <div>
-                        <div className="text-[10px] font-mono font-black text-amber-800 bg-amber-200 px-2 py-0.5 rounded-md inline-block mb-1.5 border border-black">
-                          ÉTAPE 1
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[10px] font-mono font-black text-emerald-800 bg-emerald-200 px-2 py-0.5 rounded-md border border-black">
+                            RECOMMANDÉ · 100% FIABLE
+                          </span>
+                          <span className="text-[10px] font-mono text-neutral-500">Sans panne 522</span>
                         </div>
                         <h4 className="text-xs font-black text-black mb-1">
-                          Déclencher le mail d'activation
+                          Activer Web3Forms (Gratuit en 15 secondes)
                         </h4>
-                        <p className="text-[11px] text-neutral-600 mb-2">
-                          Cliquez sur le bouton ci-dessous pour ouvrir FormSubmit et forcer l'envoi de l'e-mail de validation.
+                        <ol className="text-[11px] text-neutral-700 space-y-1 list-decimal list-inside mb-3 leading-relaxed">
+                          <li>
+                            Ouvrez{' '}
+                            <a
+                              href="https://web3forms.com/#start"
+                              target="_blank"
+                              rel="noreferrer"
+                              className="font-bold underline text-blue-700 hover:text-blue-900 inline-flex items-center gap-0.5"
+                            >
+                              web3forms.com <ExternalLink className="w-3 h-3 inline" />
+                            </a>
+                          </li>
+                          <li>
+                            Entrez votre adresse <code>{NOTIFICATION_EMAIL}</code> et validez.
+                          </li>
+                          <li>
+                            Copiez la clé d'accès (Access Key) reçue par e-mail et collez-la ici :
+                          </li>
+                        </ol>
+                      </div>
+
+                      <form onSubmit={handleSaveWeb3Key} className="flex flex-col gap-2">
+                        <div className="flex gap-1.5">
+                          <input
+                            type="text"
+                            value={web3KeyInput}
+                            onChange={(e) => setWeb3KeyInput(e.target.value)}
+                            placeholder="Ex: a1b2c3d4-e5f6-7890-..."
+                            className="flex-1 px-2.5 py-1.5 bg-neutral-50 border-2 border-black rounded-lg text-xs font-mono focus:outline-none"
+                          />
+                          <button
+                            type="submit"
+                            className="px-3 py-1.5 bg-emerald-400 hover:bg-emerald-300 text-black border-2 border-black rounded-lg text-xs font-black shadow-[1px_1px_0px_#000] cursor-pointer shrink-0"
+                          >
+                            Enregistrer
+                          </button>
+                        </div>
+                        {web3KeySavedMsg && (
+                          <div className="text-[11px] font-mono font-bold text-emerald-700">
+                            {web3KeySavedMsg}
+                          </div>
+                        )}
+                      </form>
+                    </div>
+
+                    {/* OPTION 2 : Accès direct Gmail & Test instantané */}
+                    <div className="p-3.5 bg-white rounded-xl border-2 border-black shadow-[2px_2px_0px_#000] flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[10px] font-mono font-black text-sky-800 bg-sky-200 px-2 py-0.5 rounded-md border border-black">
+                            ZÉRO CONFIGURATION
+                          </span>
+                          <span className="text-[10px] font-mono text-neutral-500">100% Garanti</span>
+                        </div>
+                        <h4 className="text-xs font-black text-black mb-1">
+                          Consulter & envoyer en 1 clic via Gmail
+                        </h4>
+                        <p className="text-[11px] text-neutral-600 mb-2 leading-relaxed">
+                          Chaque commande dans la liste ci-dessous dispose d'un bouton <strong>« Gmail »</strong> pour ouvrir le message tout prêt vers votre adresse <code>{NOTIFICATION_EMAIL}</code>.
                         </p>
                       </div>
+
+                      <div className="space-y-2 mt-2">
+                        <button
+                          type="button"
+                          disabled={isSendingEmailTest}
+                          onClick={() => handleTestEmailNotification()}
+                          className="w-full px-3 py-2 bg-amber-300 hover:bg-amber-400 text-black border-2 border-black rounded-lg font-black text-xs flex items-center justify-center gap-1.5 shadow-[1px_1px_0px_#000] cursor-pointer"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5 text-amber-900" />
+                          <span>{isSendingEmailTest ? 'Envoi...' : 'Envoyer un test automatique'}</span>
+                        </button>
+
+                        {lastTestOrder && (
+                          <a
+                            href={createGmailComposeUrl(lastTestOrder)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="w-full px-3 py-2 bg-neutral-100 hover:bg-neutral-200 text-black border-2 border-black rounded-lg font-black text-xs flex items-center justify-center gap-1.5 shadow-[1px_1px_0px_#000] cursor-pointer"
+                          >
+                            <Mail className="w-3.5 h-3.5 text-red-600" />
+                            <span>Ouvrir le test directement dans Gmail</span>
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Option FormSubmit de secours */}
+                  <details className="mt-2 text-xs text-neutral-600">
+                    <summary className="font-bold cursor-pointer text-neutral-700 hover:text-black">
+                      › Option FormSubmit (si vous souhaitez réactiver quand FormSubmit aura réparé son serveur)
+                    </summary>
+                    <div className="mt-2 p-3 bg-neutral-100 border border-neutral-300 rounded-lg space-y-2">
+                      <p>
+                        Si le serveur FormSubmit est revenu en ligne, vous pouvez forcer l'e-mail d'activation ici :
+                      </p>
                       <form
                         action={`https://formsubmit.co/${NOTIFICATION_EMAIL}`}
                         method="POST"
                         target="_blank"
+                        className="inline-block"
                       >
-                        <input type="hidden" name="_subject" value="NumsGames - Activation des alertes commandes" />
-                        <input type="hidden" name="Message" value="Bienvenue Roman ! Cliquez sur le lien pour activer la reception des commandes NumsGames." />
+                        <input type="hidden" name="_subject" value="NumsGames - Activation commandes" />
+                        <input type="hidden" name="Message" value="Activation manuelle Roman" />
                         <button
                           type="submit"
-                          className="w-full px-3 py-2 bg-amber-400 hover:bg-amber-300 text-black border-2 border-black rounded-lg font-black text-xs flex items-center justify-center gap-1.5 shadow-[1px_1px_0px_#000] active:translate-y-0.5 cursor-pointer"
+                          className="px-3 py-1.5 bg-neutral-200 hover:bg-neutral-300 text-black border border-black rounded text-xs font-bold flex items-center gap-1 cursor-pointer"
                         >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                          <span>1. Déclencher le mail</span>
+                          <ExternalLink className="w-3 h-3" />
+                          <span>Tenter l'envoi FormSubmit (peut afficher 522 si toujours en panne)</span>
                         </button>
                       </form>
                     </div>
-
-                    {/* Étape 2 */}
-                    <div className="p-3 bg-white rounded-xl border-2 border-black shadow-[2px_2px_0px_#000] flex flex-col justify-between">
-                      <div>
-                        <div className="text-[10px] font-mono font-black text-amber-800 bg-amber-200 px-2 py-0.5 rounded-md inline-block mb-1.5 border border-black">
-                          ÉTAPE 2
-                        </div>
-                        <h4 className="text-xs font-black text-black mb-1">
-                          Où est le lien dans Gmail ?
-                        </h4>
-                        <ul className="text-[11px] text-neutral-700 space-y-1 list-disc list-inside">
-                          <li>Ouvrez votre Gmail : <strong>{NOTIFICATION_EMAIL}</strong></li>
-                          <li className="text-red-700 font-bold">⚠️ Regardez impérativement dans vos SPAMS / POURRIELS !</li>
-                          <li>Expéditeur : <code>submissions@formsubmit.co</code></li>
-                          <li>Objet : <em>« Action Required: Confirm your form at FormSubmit »</em></li>
-                        </ul>
-                      </div>
-                      <a
-                        href="https://mail.google.com"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="w-full mt-2 px-3 py-2 bg-neutral-100 hover:bg-neutral-200 text-black border-2 border-black rounded-lg font-black text-xs flex items-center justify-center gap-1.5 shadow-[1px_1px_0px_#000] cursor-pointer"
-                      >
-                        <Mail className="w-3.5 h-3.5 text-red-600" />
-                        <span>2. Ouvrir Gmail</span>
-                      </a>
-                    </div>
-
-                    {/* Étape 3 */}
-                    <div className="p-3 bg-white rounded-xl border-2 border-black shadow-[2px_2px_0px_#000] flex flex-col justify-between">
-                      <div>
-                        <div className="text-[10px] font-mono font-black text-emerald-800 bg-emerald-200 px-2 py-0.5 rounded-md inline-block mb-1.5 border border-black">
-                          ÉTAPE 3
-                        </div>
-                        <h4 className="text-xs font-black text-black mb-1">
-                          Cliquer sur « Activate Form »
-                        </h4>
-                        <p className="text-[11px] text-neutral-600 mb-2">
-                          Dans l'e-mail de FormSubmit, cliquez sur le gros bouton vert <strong>« Activate Form »</strong>. Une fois fait, testez ici :
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        disabled={isSendingEmailTest}
-                        onClick={handleTestEmailNotification}
-                        className="w-full px-3 py-2 bg-emerald-400 hover:bg-emerald-300 text-black border-2 border-black rounded-lg font-black text-xs flex items-center justify-center gap-1.5 shadow-[1px_1px_0px_#000] active:translate-y-0.5 cursor-pointer"
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-900" />
-                        <span>{isSendingEmailTest ? 'Envoi...' : '3. Tester l\'alerte en direct'}</span>
-                      </button>
-                    </div>
-                  </div>
+                  </details>
                 </div>
               )}
 
               {/* Bannière de confirmation de l'alerte e-mail */}
               {emailStatusMsg && (
-                <div className="p-3 bg-amber-50 border-b-2 border-black text-xs font-mono font-bold text-black flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
+                <div className="p-3 bg-amber-50 border-b-2 border-black text-xs font-mono font-bold text-black flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 flex-1">
                     <Mail className="w-4 h-4 text-amber-700 shrink-0" />
                     <span>{emailStatusMsg}</span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setEmailStatusMsg('')}
-                    className="text-neutral-500 hover:text-black cursor-pointer p-1"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {lastTestOrder && (
+                      <a
+                        href={createGmailComposeUrl(lastTestOrder)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-2.5 py-1 bg-white hover:bg-neutral-100 text-black border border-black rounded-lg font-bold text-[11px] flex items-center gap-1 shadow-[1px_1px_0px_#000] cursor-pointer"
+                      >
+                        <Mail className="w-3 h-3 text-red-600" />
+                        <span>Ouvrir dans Gmail</span>
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setEmailStatusMsg('')}
+                      className="text-neutral-500 hover:text-black cursor-pointer p-1"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -1810,6 +2020,16 @@ export default function App() {
                             <span className="text-xs font-mono font-black bg-amber-300 text-black border border-black px-2.5 py-0.5 rounded-full shadow-[1px_1px_0px_#000]">
                               {order.totalPrice}
                             </span>
+                            <a
+                              href={createGmailComposeUrl(order)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-2 py-1 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-black border border-neutral-300 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                              title="Ouvrir le récapitulatif dans Gmail"
+                            >
+                              <Mail className="w-3 h-3 text-red-600" />
+                              <span>Gmail</span>
+                            </a>
                             <button
                               type="button"
                               onClick={() => deleteOrder(order.id)}
