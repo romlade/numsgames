@@ -356,7 +356,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
     category: 'applications',
     categoryLabel: 'Super App',
     badge: '5 €',
-    description: '29 small games in one app disguised as a math app called Matrices',
+    description: '29 mini-jeux réunis dans une seule application déguisée en calculatrice matricielle.',
     sizeKb: 450,
     price: 5,
     isSuperApp: true
@@ -371,7 +371,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
     category: 'applications',
     categoryLabel: 'App Individuelle',
     badge: '4 €',
-    description: 'Celeste: the whole climb up Celeste Mountain',
+    description: 'Celeste : l\'ascension complète de la montagne Celeste.',
     sizeKb: 280,
     price: 4
   },
@@ -383,7 +383,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
     category: 'applications',
     categoryLabel: 'App Individuelle',
     badge: '4 €',
-    description: "Hollow Knight: from King's Pass to Hornet in Greenpath",
+    description: 'Hollow Knight : du Col du Roi jusqu\'au combat contre Hornet à Vertchemin.',
     sizeKb: 320,
     price: 4
   },
@@ -395,7 +395,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
     category: 'applications',
     categoryLabel: 'App Individuelle',
     badge: '4 €',
-    description: 'Undertale: the whole Underground, to the barrier and the neutral ending',
+    description: 'Undertale : traverse tout l\'Outre-monde jusqu\'à la barrière et la fin neutre.',
     sizeKb: 290,
     price: 4
   },
@@ -407,7 +407,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
     category: 'applications',
     categoryLabel: 'App Individuelle',
     badge: '4 €',
-    description: "Subway Surfers: the endless run down the subway's tracks, in 3D",
+    description: 'Subway Surfers : course infinie en 3D sur les voies ferrées du métro.',
     sizeKb: 260,
     price: 4
   },
@@ -419,7 +419,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
     category: 'applications',
     categoryLabel: 'App Individuelle',
     badge: '4 €',
-    description: "Five Nights at Freddy's: five nights at Freddy Fazbear's Pizza, the 6th and the Custom Night",
+    description: 'Five Nights at Freddy\'s : cinq nuits chez Freddy Fazbear, avec la 6e nuit et la Nuit Personnalisée.',
     sizeKb: 310,
     price: 4
   },
@@ -431,7 +431,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
     category: 'applications',
     categoryLabel: 'App Individuelle',
     badge: '4 €',
-    description: "Hill Climb Racing: Newton Bill's ride up the hills: thirteen stages, thirteen vehicles",
+    description: 'Hill Climb Racing : les circuits de Newton Bill à travers 13 étapes et 13 véhicules déblocables.',
     sizeKb: 240,
     price: 4
   },
@@ -443,7 +443,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
     category: 'applications',
     categoryLabel: 'App Individuelle',
     badge: '4 €',
-    description: 'Champion Island: the Doodle Champion Island Games',
+    description: 'Champion Island : le grand jeu d\'aventure et d\'épreuves sportives des Doodle Games.',
     sizeKb: 210,
     price: 4
   },
@@ -455,7 +455,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
     category: 'applications',
     categoryLabel: 'App Individuelle',
     badge: '4 €',
-    description: 'NumPowder: The Powder Toy on the calculator, with nearly 200 elements',
+    description: 'NumPowder : The Powder Toy sur calculatrice, simulateur de physique avec près de 200 éléments.',
     sizeKb: 190,
     price: 4
   },
@@ -467,7 +467,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
     category: 'applications',
     categoryLabel: 'App Individuelle',
     badge: '4 €',
-    description: 'The Final Earth 2: build a city on floating islands in space',
+    description: 'The Final Earth 2 : construis et gère une colonie spatiale sur des îles flottantes.',
     sizeKb: 250,
     price: 4
   },
@@ -479,7 +479,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
     category: 'applications',
     categoryLabel: 'App Individuelle',
     badge: '4 €',
-    description: 'Doom: Knee-Deep in the Dead, all nine levels',
+    description: 'Doom : Knee-Deep in the Dead, les neuf niveaux légendaires du jeu.',
     sizeKb: 350,
     price: 4
   },
@@ -491,7 +491,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
     category: 'applications',
     categoryLabel: 'App Individuelle',
     badge: '4 €',
-    description: 'The Binding of Isaac: a whole run, from the Basement to Sheol and the Cathedral',
+    description: 'The Binding of Isaac : une partie complète, du Sous-sol jusqu\'au Sheol et à la Cathédrale.',
     sizeKb: 340,
     price: 4
   },
@@ -503,7 +503,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
     category: 'applications',
     categoryLabel: 'App Individuelle',
     badge: '4 €',
-    description: 'Plants vs. Zombies: the whole Adventure, from the front lawn to Dr. Zomboss',
+    description: 'Plantes contre Zombies : l\'aventure intégrale, de la pelouse avant jusqu\'au Dr. Zomboss.',
     sizeKb: 360,
     price: 4
   },
@@ -515,7 +515,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
     category: 'applications',
     categoryLabel: 'App Individuelle',
     badge: '4 €',
-    description: "Level Devil: Unept's troll platformer, all sixteen worlds",
+    description: 'Level Devil : le jeu de plateforme piégé d\'Unept, avec l\'ensemble des 16 mondes.',
     sizeKb: 220,
     price: 4
   },
@@ -527,7 +527,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
     category: 'applications',
     categoryLabel: 'App Individuelle',
     badge: '4 €',
-    description: 'Sonic the Hedgehog: the whole 1991 game, Green Hill to the Final Zone',
+    description: 'Sonic the Hedgehog : le jeu culte original de 1991, de Green Hill jusqu\'à la Final Zone.',
     sizeKb: 320,
     price: 4
   },
@@ -539,7 +539,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
     category: 'applications',
     categoryLabel: 'App Individuelle',
     badge: '4 €',
-    description: 'NumVisuals: moving backgrounds with a clock, a stopwatch, a timer, a counter or your own words',
+    description: 'NumVisuals : arrière-plans animés avec horloge, chronomètre, minuteur, compteur ou textes libres.',
     sizeKb: 150,
     price: 4
   },
@@ -551,7 +551,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
     category: 'applications',
     categoryLabel: 'App Individuelle',
     badge: '4 €',
-    description: 'Cookie Clicker: the whole game, to the grandmapocalypse, ascension and the dragon',
+    description: 'Cookie Clicker : le jeu complet avec la grand-mapocalypse, l\'ascension céleste et le dragon.',
     sizeKb: 270,
     price: 4
   },
@@ -563,7 +563,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
     category: 'applications',
     categoryLabel: 'App Individuelle',
     badge: '4 €',
-    description: "Jetpack Joyride: Barry's run through the lab, with five vehicles and the Final Spin",
+    description: 'Jetpack Joyride : la virée de Barry dans le labo secret, avec 5 véhicules et le tirage final.',
     sizeKb: 280,
     price: 4
   },
@@ -575,7 +575,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
     category: 'applications',
     categoryLabel: 'App Individuelle',
     badge: '4 €',
-    description: 'Stickman Hook: swing from hook to hook: 39 levels made by hand, then endless ones',
+    description: 'Stickman Hook : balance-toi de crochet en crochet avec 39 niveaux uniques puis des niveaux infinis.',
     sizeKb: 200,
     price: 4
   },
@@ -587,7 +587,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
     category: 'applications',
     categoryLabel: 'App Individuelle',
     badge: '4 €',
-    description: 'Donkey Kong: the 1981 arcade game: barrels, pies, elevators and rivets, up to Pauline',
+    description: 'Donkey Kong : le jeu d\'arcade classique de 1981 avec tonneaux, tartes, ascenseurs et rivets pour sauver Pauline.',
     sizeKb: 180,
     price: 4
   },
@@ -599,7 +599,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
     category: 'applications',
     categoryLabel: 'App Individuelle',
     badge: '4 €',
-    description: "Dune: roll down the dunes and fly over the line, with the shop's 26 balls and 7 landscapes",
+    description: 'Dune : surfe sur les dunes de sable avec 26 balles et 7 paysages à débloquer.',
     sizeKb: 210,
     price: 4
   },
@@ -611,7 +611,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
     category: 'applications',
     categoryLabel: 'App Individuelle',
     badge: '4 €',
-    description: 'Monkey Mart: run a grocery mart as a monkey, both marts: crops, animals, machines and workers',
+    description: 'Monkey Mart : gère ton supermarché avec un singe (plantations, animaux, machines et employés).',
     sizeKb: 290,
     price: 4
   },
@@ -623,7 +623,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
     category: 'applications',
     categoryLabel: 'App Individuelle',
     badge: '4 €',
-    description: 'Tomb of the Mask: dash through the tomb: the endless arcade climb and all 200 stages, with the 16 masks',
+    description: 'Tomb of the Mask : gravis le labyrinthe avec l\'ascension arcade infinie et les 200 niveaux avec 16 masques.',
     sizeKb: 260,
     price: 4
   },
@@ -635,7 +635,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
     category: 'applications',
     categoryLabel: 'App Individuelle',
     badge: '4 €',
-    description: 'UNO: the card game against one to three bots, with the official rules and scoring to 500',
+    description: 'UNO : le jeu de cartes culte contre 1 à 3 bots, avec les règles officielles et score jusqu\'à 500.',
     sizeKb: 230,
     price: 4
   },
@@ -647,7 +647,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
     category: 'applications',
     categoryLabel: 'App Individuelle',
     badge: '4 €',
-    description: "Friday Night Funkin': the Tutorial, Weeks 1 to 7, Weekend 1 and LE SSERAFIM, in story mode and freeplay",
+    description: 'Friday Night Funkin\' : tutoriel, semaines 1 à 7, Weekend 1 et bonus en mode Histoire et Jeu Libre.',
     sizeKb: 380,
     price: 4
   },
@@ -659,7 +659,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
     category: 'applications',
     categoryLabel: 'App Individuelle',
     badge: '4 €',
-    description: 'Turbo Rush: an arcade racer by Bobydeluxe: six circuits, a Grand Prix, single races and Free Ride',
+    description: 'Turbo Rush : course automobile arcade par Bobydeluxe avec 6 circuits, Grand Prix, courses uniques et mode libre.',
     sizeKb: 270,
     price: 4
   },
@@ -671,7 +671,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
     category: 'applications',
     categoryLabel: 'App Individuelle',
     badge: '4 €',
-    description: 'Angry Birds: the 429 levels of the Chrome edition, its seven birds and the Mighty Eagle',
+    description: 'Angry Birds : les 429 niveaux de l\'édition Chrome avec ses 7 oiseaux et le Puissant Aigle.',
     sizeKb: 340,
     price: 4
   }

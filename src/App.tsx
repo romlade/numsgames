@@ -634,7 +634,13 @@ export default function App() {
                       &gt; {prenom || nom ? `${prenom} ${nom}`.trim() : 'Nom Prénom...'}
                     </div>
                     <div className="text-neutral-700 text-[11px] truncate">
-                      &gt; {currentSelectedTitles.length > 0 ? currentSelectedTitles.join(', ') : 'Aucun script coché'}
+                      &gt; {currentSelectedTitles.length > 0
+                        ? currentSelectedTitles.join(', ')
+                        : currentPage === 'python'
+                        ? 'Aucun script coché'
+                        : currentPage === 'emulateurs'
+                        ? 'Aucun émulateur sélectionné'
+                        : 'Aucune application sélectionnée'}
                     </div>
                     {currentPage === 'python' && pythonCount > 0 && pythonRemainingToFullPack > 0 && (
                       <div className="text-amber-800 text-[10px] pt-1 font-semibold">
