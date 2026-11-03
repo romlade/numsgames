@@ -241,12 +241,12 @@ export default function App() {
                       Scripts Python
                     </h2>
                     <p className="text-xs text-neutral-600 font-medium leading-snug">
-                      19 scripts disponibles (2048, Snake, Pong, Tanks, Flappy, Tetris, Sudoku, Échecs...).
+                      19 jeux et programmes en code Python natif. Choisis un paquet de 3 scripts pour 2 € (ex: 2048, Snake, Pong, Tetris, Échecs, Sudoku, Tanks...).
                     </p>
                   </div>
 
                   <div className="text-[11px] font-mono font-bold text-black pt-2 border-t-2 border-neutral-100 flex items-center justify-between">
-                    <span>Ouvrir la liste (19 jeux)</span>
+                    <span>Composer mon paquet (2 €)</span>
                     <ArrowRight className="w-4 h-4 text-black group-hover:translate-x-1 transition-transform" />
                   </div>
                 </button>
@@ -262,7 +262,7 @@ export default function App() {
                       <Gamepad2 className="w-5 h-5" />
                     </span>
                     <span className="text-[11px] font-mono font-black text-black bg-sky-200 border border-black px-2 py-0.5 rounded-md shadow-[1px_1px_0px_#000]">
-                      1 jeu : 3 € ou 4 €
+                      3 € ou 4 € (1 jeu)
                     </span>
                   </div>
 
@@ -271,12 +271,12 @@ export default function App() {
                       Émulateurs
                     </h2>
                     <p className="text-xs text-neutral-600 font-medium leading-snug">
-                      10 jeux disponibles (1 seul émulateur au choix : 4 € en couleur · 3 € en noir et blanc). Pokémon Cristal, Or, Argent en couleur, Mario, Zelda...
+                      10 jeux rétro Game Boy (1 seul jeu au choix par calculatrice). 3 € pour un jeu noir & blanc (Pokémon Rouge/Bleu/Jaune, Mario, Zelda) ou 4 € en couleur (Pokémon Cristal, Or, Argent).
                     </p>
                   </div>
 
                   <div className="text-[11px] font-mono font-bold text-sky-900 pt-2 border-t-2 border-neutral-100 flex items-center justify-between">
-                    <span>Choisir mon jeu (3 € N&B · 4 € Couleur)</span>
+                    <span>Choisir mon jeu (3 € ou 4 €)</span>
                     <ArrowRight className="w-4 h-4 text-black group-hover:translate-x-1 transition-transform" />
                   </div>
                 </button>
@@ -292,7 +292,7 @@ export default function App() {
                       <LayoutGrid className="w-5 h-5" />
                     </span>
                     <span className="text-[11px] font-mono font-black text-black bg-emerald-200 border border-black px-2 py-0.5 rounded-md shadow-[1px_1px_0px_#000]">
-                      1 app : 4 € ou 5 €
+                      4 € ou 5 € (1 seule)
                     </span>
                   </div>
 
@@ -301,7 +301,7 @@ export default function App() {
                       Appli
                     </h2>
                     <p className="text-xs text-neutral-600 font-medium leading-snug">
-                      27 apps disponibles (1 seule app installable : 4 € individuelle · 5 € Super App). Celeste, Hollow Knight, Undertale...
+                      27 jeux portés en .nwa (1 seule application installable). 4 € pour une application individuelle (Celeste, Hollow Knight, Undertale, FNAF, Doom...) ou 5 € pour la Super App NumPlay (29 jeux en 1).
                     </p>
                   </div>
 
