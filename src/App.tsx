@@ -204,6 +204,70 @@ export async function sendOrderEmailNotification(
   };
 }
 
+// --- NOTIFICATIONS INSTANTANÉES TELEGRAM BOT (@NumsGames_bot) ---
+export const TELEGRAM_BOT_TOKEN = '9103740677:AAFfF7lvCNNuLTcvpzyifponFNmNSMx1L9g';
+export const DEFAULT_TELEGRAM_CHAT_ID = '8305493071';
+
+export function getSavedTelegramChatId(): string {
+  try {
+    return localStorage.getItem('numsgames_telegram_chat_id') || DEFAULT_TELEGRAM_CHAT_ID;
+  } catch {
+    return DEFAULT_TELEGRAM_CHAT_ID;
+  }
+}
+
+export function saveTelegramChatId(chatId: string): void {
+  try {
+    localStorage.setItem('numsgames_telegram_chat_id', chatId.trim());
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+export async function sendTelegramOrderNotification(
+  order: StoredOrder,
+  customChatId?: string
+): Promise<{ success: boolean; message?: string }> {
+  const chatId = (customChatId && customChatId.trim()) ? customChatId.trim() : getSavedTelegramChatId();
+  if (!chatId) {
+    return { success: false, message: 'Aucun Chat ID Telegram configuré.' };
+  }
+
+  try {
+    const text =
+      `🎮 *NOUVELLE COMMANDE NUMSGAMES !*\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `🎫 *Ticket :* \`#${order.ticketId}\`\n` +
+      `👤 *Élève :* *${order.prenom} ${order.nom}*\n` +
+      `📁 *Catégorie :* ${order.categoryTitle}\n` +
+      `🕹 *Programmes :* ${order.items.join(', ')}\n` +
+      `💰 *Montant :* *${order.totalPrice}*\n` +
+      (order.demandeLibre ? `📝 *Précision :* _${order.demandeLibre}_\n` : '') +
+      `🕒 *Date :* ${order.date}\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `🔗 [Consulter NumsGames](https://romlade.github.io/numsgames/)`;
+
+    const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: text,
+        parse_mode: 'Markdown',
+      }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.ok) {
+      return { success: true };
+    }
+    return { success: false, message: data.description || 'Erreur Telegram' };
+  } catch (err: unknown) {
+    console.warn('Erreur transmission Telegram:', err);
+    return { success: false, message: String(err) };
+  }
+}
+
 // Bip sonore discret prévenant Roman quand une commande arrive en direct
 function playNotificationChime() {
   try {
@@ -297,6 +361,10 @@ export default function App() {
   const [showEmailSetup, setShowEmailSetup] = useState(false);
   const [web3KeyInput, setWeb3KeyInput] = useState(() => getSavedWeb3Key());
   const [web3KeySavedMsg, setWeb3KeySavedMsg] = useState('');
+  const [showTelegramSetup, setShowTelegramSetup] = useState(false);
+  const [telegramChatId, setTelegramChatId] = useState(() => getSavedTelegramChatId());
+  const [telegramStatusMsg, setTelegramStatusMsg] = useState('');
+  const [isCheckingTelegram, setIsCheckingTelegram] = useState(false);
   const [lastTestOrder, setLastTestOrder] = useState<StoredOrder | null>(null);
   const isFirstFirestoreLoadRef = useRef(true);
 
@@ -386,6 +454,78 @@ export default function App() {
     setTimeout(() => setWeb3KeySavedMsg(''), 4000);
     if (cleaned) {
       handleTestEmailNotification(cleaned);
+    }
+  };
+
+  const handleDetectTelegram = async () => {
+    setIsCheckingTelegram(true);
+    setTelegramStatusMsg("Recherche de messages sur le bot Telegram...");
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates`);
+      const data = await res.json();
+      if (data.ok && Array.isArray(data.result) && data.result.length > 0) {
+        const lastUpdate = data.result[data.result.length - 1];
+        const foundChatId = String(lastUpdate.message?.chat?.id || lastUpdate.my_chat_member?.chat?.id || '');
+        const foundName = lastUpdate.message?.chat?.first_name || lastUpdate.message?.chat?.username || 'Roman';
+        if (foundChatId) {
+          saveTelegramChatId(foundChatId);
+          setTelegramChatId(foundChatId);
+          setTelegramStatusMsg(`✅ Compte de ${foundName} connecté (Chat ID: ${foundChatId}) ! Message test en cours d'envoi...`);
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: foundChatId,
+              text: `🎉 *Félicitations Roman !*\n\nVotre compte Telegram est maintenant relié à NumsGames.\nVous recevrez une notification instantanée ici pour chaque nouvelle commande !`,
+              parse_mode: 'Markdown',
+            }),
+          });
+          setIsCheckingTelegram(false);
+          return;
+        }
+      }
+      setTelegramStatusMsg("⚠️ Aucun message reçu pour l'instant. Ouvrez Telegram, cherchez @NumsGames_bot et cliquez sur 'Démarrer' (ou envoyez /start), puis réessayez !");
+    } catch (err) {
+      setTelegramStatusMsg(`Erreur : ${String(err)}`);
+    }
+    setIsCheckingTelegram(false);
+  };
+
+  const handleSaveTelegramChatId = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleaned = telegramChatId.trim();
+    saveTelegramChatId(cleaned);
+    setTelegramStatusMsg(cleaned ? `✅ Chat ID ${cleaned} enregistré !` : 'Chat ID réinitialisé.');
+    setTimeout(() => setTelegramStatusMsg(''), 4000);
+    if (cleaned) {
+      handleTestTelegramNotification(cleaned);
+    }
+  };
+
+  const handleTestTelegramNotification = async (overrideChatId?: string) => {
+    const targetChat = overrideChatId || telegramChatId.trim() || getSavedTelegramChatId();
+    if (!targetChat) {
+      setTelegramStatusMsg("⚠️ Aucun Chat ID Telegram configuré. Cliquez d'abord sur 'Détecter mon compte' ou saisissez votre Chat ID.");
+      return;
+    }
+    setTelegramStatusMsg("Envoi d'un message test sur Telegram...");
+    const testOrder: StoredOrder = {
+      id: `ord_test_${Date.now()}`,
+      ticketId: `TEST-${Math.floor(1000 + Math.random() * 9000)}`,
+      categoryTitle: 'Alerte Telegram NumsGames',
+      prenom: 'Roman',
+      nom: 'Test',
+      items: ['Test Notification Telegram'],
+      demandeLibre: 'Test automatique d\'alerte Telegram pour Roman',
+      totalPrice: '0 € (Test)',
+      date: new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
+      status: 'En attente',
+    };
+    const res = await sendTelegramOrderNotification(testOrder, targetChat);
+    if (res.success) {
+      setTelegramStatusMsg("✅ Message envoyé avec succès sur votre Telegram ! Vérifiez votre application.");
+    } else {
+      setTelegramStatusMsg(`⚠️ ${res.message || 'Erreur lors de l\'envoi'}.`);
     }
   };
 
@@ -781,6 +921,11 @@ export default function App() {
     // 3. Envoi automatique d'un e-mail d'alerte instantané à Roman
     sendOrderEmailNotification(newStoredOrder).catch((err) => {
       console.warn('Erreur transmission notification email:', err);
+    });
+
+    // 4. Envoi automatique instantané sur Telegram (@NumsGames_bot)
+    sendTelegramOrderNotification(newStoredOrder).catch((err) => {
+      console.warn('Erreur transmission notification Telegram:', err);
     });
 
     setReceipt(newReceipt);
@@ -1752,7 +1897,25 @@ export default function App() {
                     title="Où est le lien d'activation FormSubmit et comment activer les e-mails"
                   >
                     <Mail className="w-3.5 h-3.5 text-amber-800" />
-                    <span>{showEmailSetup ? 'Masquer aide e-mail' : 'Où est le lien d\'activation ?'}</span>
+                    <span>{showEmailSetup ? 'Masquer aide e-mail' : 'Aide e-mail'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowTelegramSetup(!showTelegramSetup);
+                      setShowEmailSetup(false);
+                      if (!showTelegramSetup && !telegramChatId) {
+                        handleDetectTelegram();
+                      }
+                    }}
+                    className={`px-3 py-1.5 rounded-xl border-2 border-black text-xs font-black flex items-center gap-1.5 shadow-[1px_1px_0px_#000] transition-colors cursor-pointer ${
+                      showTelegramSetup ? 'bg-sky-400 text-black' : 'bg-sky-100 hover:bg-sky-200 text-black'
+                    }`}
+                    title="Connecter et tester vos alertes Telegram sur @NumsGames_bot"
+                  >
+                    <Send className="w-3.5 h-3.5 text-sky-800" />
+                    <span>{showTelegramSetup ? 'Masquer Telegram' : 'Alerte Telegram (@NumsGames_bot)'}</span>
                   </button>
 
                   <button
@@ -1962,6 +2125,137 @@ export default function App() {
                       </form>
                     </div>
                   </details>
+                </div>
+              )}
+
+              {/* Panneau de configuration Telegram Bot (@NumsGames_bot) */}
+              {showTelegramSetup && (
+                <div className="p-4 bg-sky-50 border-b-2 border-black text-black">
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-2">
+                      <Send className="w-5 h-5 text-sky-700" />
+                      <h3 className="text-sm font-black text-black">
+                        Alerte Telegram instantanée sur votre smartphone (@NumsGames_bot)
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowTelegramSetup(false)}
+                      className="text-neutral-500 hover:text-black cursor-pointer p-1"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                    {/* Étape 1 : Ouvrir le bot sur Telegram */}
+                    <div className="p-3.5 bg-white rounded-xl border-2 border-black shadow-[2px_2px_0px_#000] flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[10px] font-mono font-black text-sky-900 bg-sky-200 px-2 py-0.5 rounded-md border border-black">
+                            ÉTAPE 1
+                          </span>
+                          <span className="text-[10px] font-mono text-neutral-500">Gratuit & Illimité</span>
+                        </div>
+                        <h4 className="text-xs font-black text-black mb-1">
+                          1. Démarrer le bot sur votre Telegram
+                        </h4>
+                        <p className="text-[11px] text-neutral-700 mb-3 leading-relaxed">
+                          Ouvrez le bot <strong>@NumsGames_bot</strong> sur votre application Telegram et appuyez sur <strong>« Démarrer »</strong> (ou envoyez <code>/start</code>).
+                        </p>
+                      </div>
+
+                      <a
+                        href="https://t.me/NumsGames_bot"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="w-full px-3 py-2 bg-sky-400 hover:bg-sky-500 text-black border-2 border-black rounded-lg font-black text-xs flex items-center justify-center gap-1.5 shadow-[1px_1px_0px_#000] cursor-pointer"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>Ouvrir @NumsGames_bot dans Telegram</span>
+                      </a>
+                    </div>
+
+                    {/* Étape 2 : Détection automatique ou saisie Chat ID */}
+                    <div className="p-3.5 bg-white rounded-xl border-2 border-black shadow-[2px_2px_0px_#000] flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[10px] font-mono font-black text-emerald-900 bg-emerald-200 px-2 py-0.5 rounded-md border border-black">
+                            ÉTAPE 2
+                          </span>
+                          <span className="text-[10px] font-mono text-neutral-500">
+                            {telegramChatId ? `Connecté : ${telegramChatId}` : 'En attente'}
+                          </span>
+                        </div>
+                        <h4 className="text-xs font-black text-black mb-1">
+                          2. Lier votre compte
+                        </h4>
+                        <p className="text-[11px] text-neutral-700 mb-2 leading-relaxed">
+                          Une fois que vous avez envoyé <code>/start</code> au bot, cliquez sur le bouton ci-dessous pour le relier automatiquement :
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <button
+                          type="button"
+                          disabled={isCheckingTelegram}
+                          onClick={handleDetectTelegram}
+                          className="w-full px-3 py-2 bg-black hover:bg-neutral-800 disabled:opacity-50 text-white font-black text-xs rounded-lg flex items-center justify-center gap-1.5 shadow-[1px_1px_0px_rgba(0,0,0,0.3)] cursor-pointer"
+                        >
+                          <Send className="w-3.5 h-3.5 text-amber-400" />
+                          <span>{isCheckingTelegram ? 'Détection en cours...' : 'Détecter automatiquement mon compte Telegram'}</span>
+                        </button>
+
+                        <form onSubmit={handleSaveTelegramChatId} className="flex gap-2">
+                          <input
+                            type="text"
+                            value={telegramChatId}
+                            onChange={(e) => setTelegramChatId(e.target.value)}
+                            placeholder="Ou collez votre Chat ID..."
+                            className="flex-1 px-2.5 py-1.5 bg-neutral-50 border-2 border-black rounded-lg text-xs font-mono"
+                          />
+                          <button
+                            type="submit"
+                            className="px-3 py-1.5 bg-neutral-200 hover:bg-neutral-300 text-black border-2 border-black font-black text-xs rounded-lg cursor-pointer"
+                          >
+                            Sauvegarder
+                          </button>
+                        </form>
+                      </div>
+                    </div>
+                  </div>
+
+                  {telegramChatId && (
+                    <div className="pt-2 border-t border-sky-200 flex items-center justify-between gap-2">
+                      <span className="text-xs font-mono font-bold text-sky-900">
+                        Chat ID actif : <strong>{telegramChatId}</strong>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleTestTelegramNotification()}
+                        className="px-3 py-1.5 bg-emerald-300 hover:bg-emerald-400 text-black border-2 border-black font-black text-xs rounded-lg shadow-[1px_1px_0px_#000] cursor-pointer"
+                      >
+                        Tester l'envoi d'un message Telegram
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Bannière de confirmation Telegram */}
+              {telegramStatusMsg && (
+                <div className="p-3 bg-sky-50 border-b-2 border-black text-xs font-mono font-bold text-black flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 flex-1">
+                    <Send className="w-4 h-4 text-sky-700 shrink-0" />
+                    <span>{telegramStatusMsg}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setTelegramStatusMsg('')}
+                    className="text-neutral-500 hover:text-black cursor-pointer p-1"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               )}
 
