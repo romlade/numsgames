@@ -27,7 +27,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 
-import { collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, getDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from './firebase';
 import { CATALOG_ITEMS, CATEGORIES_CONFIG } from './data/catalog';
 import { CategoryKey, StoredOrder } from './types';
@@ -245,13 +245,21 @@ export function saveTelegramChatId(chatId: string): void {
   }
 }
 
+function escapeTelegramHtml(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 export async function sendTelegramOrderNotification(
   order: StoredOrder,
   customChatId?: string,
   customToken?: string
 ): Promise<{ success: boolean; message?: string }> {
   const token = (customToken && customToken.trim()) ? customToken.trim() : getSavedTelegramToken();
-  const chatId = (customChatId && customChatId.trim()) ? customChatId.trim() : getSavedTelegramChatId();
+  const chatId = (customChatId && customChatId.trim()) ? customChatId.trim() : (getSavedTelegramChatId() || '8305493071');
 
   if (!token || !chatId) {
     return { success: false, message: 'Configuration Telegram manquante (Token ou Chat ID).' };
@@ -259,17 +267,17 @@ export async function sendTelegramOrderNotification(
 
   try {
     const text =
-      `🎮 *NOUVELLE COMMANDE NUMSGAMES !*\n` +
+      `🎮 <b>NOUVELLE COMMANDE NUMSGAMES !</b>\n` +
       `━━━━━━━━━━━━━━━━━━━━\n` +
-      `🎫 *Ticket :* \`#${order.ticketId}\`\n` +
-      `👤 *Élève :* *${order.prenom} ${order.nom}*\n` +
-      `📁 *Catégorie :* ${order.categoryTitle}\n` +
-      `🕹 *Programmes :* ${order.items.join(', ')}\n` +
-      `💰 *Montant :* *${order.totalPrice}*\n` +
-      (order.demandeLibre ? `📝 *Précision :* _${order.demandeLibre}_\n` : '') +
-      `🕒 *Date :* ${order.date}\n` +
+      `🎫 <b>Ticket :</b> <code>#${escapeTelegramHtml(order.ticketId)}</code>\n` +
+      `👤 <b>Élève :</b> <b>${escapeTelegramHtml(order.prenom)} ${escapeTelegramHtml(order.nom)}</b>\n` +
+      `📁 <b>Catégorie :</b> ${escapeTelegramHtml(order.categoryTitle)}\n` +
+      `🕹 <b>Programmes :</b> ${escapeTelegramHtml(order.items.join(', '))}\n` +
+      `💰 <b>Montant :</b> <b>${escapeTelegramHtml(order.totalPrice)}</b>\n` +
+      (order.demandeLibre ? `📝 <b>Précision :</b> <i>${escapeTelegramHtml(order.demandeLibre)}</i>\n` : '') +
+      `🕒 <b>Date :</b> ${escapeTelegramHtml(order.date)}\n` +
       `━━━━━━━━━━━━━━━━━━━━\n` +
-      `🔗 [Consulter NumsGames](https://romlade.github.io/numsgames/)`;
+      `🔗 <a href="https://romlade.github.io/numsgames/">Consulter NumsGames</a>`;
 
     const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
@@ -277,7 +285,7 @@ export async function sendTelegramOrderNotification(
       body: JSON.stringify({
         chat_id: chatId,
         text: text,
-        parse_mode: 'Markdown',
+        parse_mode: 'HTML',
       }),
     });
 
@@ -393,6 +401,45 @@ export default function App() {
   const [isCheckingTelegram, setIsCheckingTelegram] = useState(false);
   const [lastTestOrder, setLastTestOrder] = useState<StoredOrder | null>(null);
   const isFirstFirestoreLoadRef = useRef(true);
+  const cloudTelegramTokenRef = useRef<string>(getSavedTelegramToken());
+  const cloudTelegramChatIdRef = useRef<string>(getSavedTelegramChatId() || '8305493071');
+
+  // Synchronisation continue des paramètres de notifications (Telegram) depuis Firestore
+  useEffect(() => {
+    const unsubSettings = onSnapshot(
+      doc(db, 'settings', 'notifications'),
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.telegramToken && typeof data.telegramToken === 'string') {
+            cloudTelegramTokenRef.current = data.telegramToken;
+            setTelegramTokenInput(data.telegramToken);
+            saveTelegramToken(data.telegramToken);
+          }
+          if (data.telegramChatId && typeof data.telegramChatId === 'string') {
+            cloudTelegramChatIdRef.current = data.telegramChatId;
+            setTelegramChatId(data.telegramChatId);
+            saveTelegramChatId(data.telegramChatId);
+          }
+        } else {
+          // Si Firestore n'a pas encore le document, on pousse la configuration présente dans ce navigateur
+          const localTok = getSavedTelegramToken();
+          const localChat = getSavedTelegramChatId() || '8305493071';
+          if (localTok) {
+            setDoc(doc(db, 'settings', 'notifications'), {
+              telegramToken: localTok,
+              telegramChatId: localChat,
+              updatedAt: new Date().toISOString(),
+            }).catch((err) => console.warn('Sync initial settings error:', err));
+          }
+        }
+      },
+      (err) => {
+        console.warn('Erreur lecture Firestore settings notifications:', err);
+      }
+    );
+    return () => unsubSettings();
+  }, []);
 
   // Synchronisation en temps réel via Firestore onSnapshot
   useEffect(() => {
@@ -523,13 +570,27 @@ export default function App() {
     setIsCheckingTelegram(false);
   };
 
-  const handleSaveTelegramConfig = (e: React.FormEvent) => {
+  const handleSaveTelegramConfig = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanedToken = telegramTokenInput.trim();
-    const cleanedChatId = telegramChatId.trim();
+    const cleanedChatId = telegramChatId.trim() || '8305493071';
     saveTelegramToken(cleanedToken);
     saveTelegramChatId(cleanedChatId);
-    setTelegramStatusMsg(cleanedToken ? `✅ Configuration Telegram enregistrée localement !` : 'Configuration réinitialisée.');
+    cloudTelegramTokenRef.current = cleanedToken;
+    cloudTelegramChatIdRef.current = cleanedChatId;
+
+    try {
+      await setDoc(doc(db, 'settings', 'notifications'), {
+        telegramToken: cleanedToken,
+        telegramChatId: cleanedChatId,
+        updatedAt: new Date().toISOString(),
+      });
+      setTelegramStatusMsg(cleanedToken ? `✅ Configuration Telegram enregistrée (Cloud Firestore + Local) !` : 'Configuration réinitialisée.');
+    } catch (err) {
+      console.warn('Erreur sauvegarde settings notifications Firestore:', err);
+      setTelegramStatusMsg(cleanedToken ? `✅ Configuration enregistrée localement (Cloud: ${String(err)})` : 'Configuration réinitialisée.');
+    }
+
     setTimeout(() => setTelegramStatusMsg(''), 4000);
     if (cleanedToken && cleanedChatId) {
       handleTestTelegramNotification(cleanedChatId, cleanedToken);
@@ -959,7 +1020,32 @@ export default function App() {
     });
 
     // 4. Envoi automatique instantané sur Telegram (@NumsGames_bot)
-    sendTelegramOrderNotification(newStoredOrder).catch((err) => {
+    (async () => {
+      let targetToken = cloudTelegramTokenRef.current || getSavedTelegramToken();
+      let targetChat = cloudTelegramChatIdRef.current || getSavedTelegramChatId() || '8305493071';
+
+      if (!targetToken) {
+        try {
+          const cfgSnap = await getDoc(doc(db, 'settings', 'notifications'));
+          if (cfgSnap.exists()) {
+            const cfg = cfgSnap.data();
+            if (cfg.telegramToken) targetToken = cfg.telegramToken;
+            if (cfg.telegramChatId) targetChat = cfg.telegramChatId;
+          }
+        } catch (e) {
+          console.warn('Erreur récupération express token Telegram:', e);
+        }
+      }
+
+      if (targetToken && targetChat) {
+        const tgRes = await sendTelegramOrderNotification(newStoredOrder, targetChat, targetToken);
+        if (!tgRes.success) {
+          console.warn('Erreur notification Telegram:', tgRes.message);
+        }
+      } else {
+        console.warn('Telegram non configuré ou token manquant pour la commande');
+      }
+    })().catch((err) => {
       console.warn('Erreur transmission notification Telegram:', err);
     });
 
@@ -2226,7 +2312,7 @@ export default function App() {
                           2. Configuration sécurisée (privée)
                         </h4>
                         <p className="text-[11px] text-neutral-700 mb-2 leading-relaxed">
-                          Vos identifiants restent stockés localement sur cet appareil et ne sont jamais exposés publiquement sur GitHub.
+                          Vos identifiants sont synchronisés en toute sécurité dans votre base Cloud Firestore (sans être exposés sur GitHub), permettant l'envoi automatique de l'alerte Telegram pour chaque commande passée par les élèves.
                         </p>
                       </div>
 

@@ -24,11 +24,25 @@ service cloud.firestore {
         && (!('id' in data) || (data.id is string && data.id.size() <= 128));
     }
 
+    function isValidSetting(data) {
+      return (!('telegramToken' in data) || (data.telegramToken is string && data.telegramToken.size() <= 200))
+        && (!('telegramChatId' in data) || (data.telegramChatId is string && data.telegramChatId.size() <= 100))
+        && (!('web3formsKey' in data) || (data.web3formsKey is string && data.web3formsKey.size() <= 100))
+        && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 100));
+    }
+
     match /orders/{orderId} {
       allow read: if true;
       allow create: if isValidId(orderId) && isValidOrder(request.resource.data);
       allow update: if isValidId(orderId) && isValidOrder(request.resource.data);
       allow delete: if isValidId(orderId);
+    }
+
+    match /settings/{settingId} {
+      allow read: if isValidId(settingId);
+      allow create: if isValidId(settingId) && isValidSetting(request.resource.data);
+      allow update: if isValidId(settingId) && isValidSetting(request.resource.data);
+      allow delete: if isValidId(settingId);
     }
   }
 }

@@ -56,12 +56,39 @@
         "totalPrice",
         "status"
       ]
+    },
+    "NotificationSetting": {
+      "title": "NotificationSetting",
+      "description": "Paramètres de notification Telegram et alertes pour l'administrateur",
+      "type": "object",
+      "properties": {
+        "telegramToken": {
+          "type": "string",
+          "description": "Token sécurisé du bot Telegram"
+        },
+        "telegramChatId": {
+          "type": "string",
+          "description": "Chat ID Telegram de Roman"
+        },
+        "web3formsKey": {
+          "type": "string",
+          "description": "Clé Web3Forms pour les e-mails"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Date de mise à jour"
+        }
+      }
     }
   },
   "firestore": {
     "/orders/{orderId}": {
       "schema": "Order",
       "description": "Collection globale des commandes synchronisées entre téléphone et PC"
+    },
+    "/settings/{settingId}": {
+      "schema": "NotificationSetting",
+      "description": "Configuration des notifications et alertes"
     }
   }
 }
