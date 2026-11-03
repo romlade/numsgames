@@ -33,12 +33,13 @@ import { CATALOG_ITEMS, CATEGORIES_CONFIG } from './data/catalog';
 import { CategoryKey, StoredOrder } from './types';
 
 export const NOTIFICATION_EMAIL = 'roman.lagardefrance@gmail.com';
+export const DEFAULT_WEB3FORMS_KEY = '78e7dd71-b3a8-4310-a3f0-805e10ce1320';
 
 export function getSavedWeb3Key(): string {
   try {
-    return localStorage.getItem('numsgames_web3forms_key') || '';
+    return localStorage.getItem('numsgames_web3forms_key') || DEFAULT_WEB3FORMS_KEY;
   } catch {
-    return '';
+    return DEFAULT_WEB3FORMS_KEY;
   }
 }
 
@@ -82,7 +83,7 @@ export async function sendOrderEmailNotification(
   order: StoredOrder,
   customKey?: string
 ): Promise<{ success: boolean; is522?: boolean; provider?: 'shipmyform' | 'web3forms' | 'formsubmit'; message?: string }> {
-  const web3Key = customKey !== undefined ? customKey : getSavedWeb3Key();
+  const web3Key = (customKey && customKey.trim()) ? customKey.trim() : getSavedWeb3Key();
 
   // 1. Envoi prioritaire via Web3Forms si l'utilisateur a renseigné sa propre clé
   if (web3Key && web3Key.trim()) {
@@ -128,6 +129,9 @@ export async function sendOrderEmailNotification(
     const timeoutId = setTimeout(() => controller.abort(), 6000);
     const shipPayload = {
       _subject: `[NumsGames] Commande #${order.ticketId} - ${order.prenom} ${order.nom}`,
+      _name: 'NumsGames',
+      name: 'NumsGames',
+      from_name: 'NumsGames',
       Ticket: `#${order.ticketId}`,
       Eleve: `${order.prenom} ${order.nom}`,
       Categorie: order.categoryTitle,
@@ -260,6 +264,8 @@ export default function App() {
   const [demandeLibre, setDemandeLibre] = useState('');
   const [receipt, setReceipt] = useState<OrderReceipt | null>(null);
   const [copied, setCopied] = useState(false);
+  const [mobileStep, setMobileStep] = useState<'select' | 'details'>('select');
+  const [mobileShowLcd, setMobileShowLcd] = useState(false);
 
   // --- ESPACE ADMINISTRATEUR (CODE SECRET 1324) ---
   const [isAdminOpen, setIsAdminOpen] = useState(false);
@@ -622,6 +628,8 @@ export default function App() {
 
   const goTo = (p: Page) => {
     setCurrentPage(p);
+    setMobileStep('select');
+    setMobileShowLcd(false);
     window.location.hash = p === 'home' ? '' : p;
   };
 
@@ -805,14 +813,14 @@ export default function App() {
   }, 0);
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-white text-neutral-950 flex flex-col font-sans select-none">
+    <div className="min-h-screen min-h-[100dvh] w-full bg-white text-neutral-950 flex flex-col font-sans select-none overflow-x-hidden md:h-screen md:overflow-hidden">
       
       {/* HEADER MINIMAL NOIR SUR BLANC */}
       <header className="h-14 border-b-2 border-neutral-900 px-4 sm:px-6 flex items-center justify-between shrink-0 bg-white z-20">
         <button
           type="button"
           onClick={() => goTo('home')}
-          className="text-xl font-black tracking-tight text-neutral-950 hover:text-amber-600 transition-colors flex items-center gap-1 cursor-pointer"
+          className="text-xl font-black tracking-tight text-neutral-950 hover:text-amber-600 transition-colors flex items-center gap-1 cursor-pointer py-1"
         >
           NumsGames<span className="text-amber-500">.</span>
         </button>
@@ -821,7 +829,7 @@ export default function App() {
           <button
             type="button"
             onClick={() => goTo('home')}
-            className="text-xs font-semibold text-neutral-600 hover:text-black transition-colors flex items-center gap-1.5 cursor-pointer bg-neutral-100 hover:bg-neutral-200 border border-neutral-300 px-3 py-1.5 rounded-lg"
+            className="text-xs font-semibold text-neutral-600 hover:text-black transition-colors flex items-center gap-1.5 cursor-pointer bg-neutral-100 hover:bg-neutral-200 border border-neutral-300 px-3 py-1.5 rounded-lg min-h-[38px] active:scale-95"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Changer de catégorie</span>
@@ -829,18 +837,18 @@ export default function App() {
         )}
       </header>
 
-      {/* ZONE CENTRALE (PAS DE DÉFILEMENT GLOBAL, NOIR SUR BLANC) */}
-      <main className="flex-1 overflow-y-auto sm:overflow-hidden p-3 sm:p-5 flex flex-col justify-center items-center bg-[#fafafa]">
-        <div className="w-full max-w-5xl mx-auto h-full flex flex-col justify-center">
+      {/* ZONE CENTRALE (OPTIMISÉE MOBILE ET DESKTOP) */}
+      <main className="flex-1 overflow-y-auto p-3 sm:p-5 flex flex-col justify-start md:justify-center items-center bg-[#fafafa] pb-28 md:pb-5">
+        <div className="w-full max-w-5xl mx-auto h-full flex flex-col justify-start md:justify-center">
 
           {/* ========================================================= */}
-          {/* PAGE 1 : ACCUEIL - 3 CARRÉS ALIGNÉS EN THÈME CLAIR        */}
+          {/* PAGE 1 : ACCUEIL - 3 CARTES ERGONOMIQUES (TACTILE MOBILE)  */}
           {/* ========================================================= */}
           {currentPage === 'home' && (
-            <div className="flex flex-col items-center justify-center my-auto py-2 text-center">
+            <div className="flex flex-col items-center justify-center my-auto py-3 text-center w-full">
               
-              {/* Grand Titre NumsGames en grand */}
-              <h1 className="text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-black tracking-tighter text-black leading-none mb-8 select-none relative inline-flex items-center justify-center">
+              {/* Grand Titre NumsGames adaptatif */}
+              <h1 className="text-5xl sm:text-7xl md:text-8xl lg:text-9xl font-black tracking-tighter text-black leading-none mb-6 sm:mb-8 select-none relative inline-flex items-center justify-center">
                 <span>Nums<span className="text-amber-500">Games</span></span>
                 {/* Zone invisible au clic (située juste après le titre) */}
                 <button
@@ -856,26 +864,26 @@ export default function App() {
                 />
               </h1>
 
-              {/* LES TROIS PROPOSITIONS EN FORME DE CARRÉ ALIGNÉ (TACTILE NUMWORKS NOIR SUR BLANC) */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5 w-full max-w-4xl mb-6">
+              {/* LES TROIS PROPOSITIONS EN CARTES TACTILES */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5 w-full max-w-4xl mb-4 sm:mb-6">
                 
-                {/* Carré 1 : Scripts Python (icône Python, sans nom d'auteur) */}
+                {/* Carte 1 : Scripts Python */}
                 <button
                   type="button"
                   onClick={() => goTo('python')}
-                  className="group aspect-square p-6 sm:p-7 rounded-3xl bg-white border-2 border-black border-b-[7px] hover:border-black active:border-b-2 active:translate-y-1 text-left transition-all hover:-translate-y-1.5 shadow-[0_4px_12px_rgba(0,0,0,0.06)] cursor-pointer flex flex-col justify-between"
+                  className="group rounded-3xl bg-white border-2 border-black border-b-[6px] sm:border-b-[7px] p-5 sm:p-7 text-left transition-all active:border-b-2 active:translate-y-1 hover:-translate-y-1.5 shadow-[0_4px_12px_rgba(0,0,0,0.06)] cursor-pointer flex flex-col justify-between min-h-[210px] md:aspect-square active:scale-[0.99]"
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between mb-3">
                     <span className="inline-flex items-center justify-center p-2.5 rounded-2xl bg-amber-100 text-amber-700 border-2 border-black shadow-[1px_1px_0px_#000] group-hover:scale-110 transition-transform">
                       <PythonIcon className="w-5 h-5" />
                     </span>
-                    <span className="text-[11px] font-mono font-black text-black bg-amber-300 border border-black px-2 py-0.5 rounded-md shadow-[1px_1px_0px_#000]">
+                    <span className="text-[11px] font-mono font-black text-black bg-amber-300 border border-black px-2.5 py-0.5 rounded-md shadow-[1px_1px_0px_#000]">
                       3 pour 2 €
                     </span>
                   </div>
 
-                  <div>
-                    <h2 className="text-xl sm:text-2xl font-black text-black group-hover:text-amber-600 transition-colors mb-1.5">
+                  <div className="my-auto py-1">
+                    <h2 className="text-xl sm:text-2xl font-black text-black group-hover:text-amber-600 transition-colors mb-1">
                       Scripts Python
                     </h2>
                     <p className="text-xs text-neutral-600 font-medium leading-snug">
@@ -883,29 +891,29 @@ export default function App() {
                     </p>
                   </div>
 
-                  <div className="text-[11px] font-mono font-bold text-black pt-2 border-t-2 border-neutral-100 flex items-center justify-between">
+                  <div className="text-[11px] font-mono font-bold text-black pt-3 border-t-2 border-neutral-100 flex items-center justify-between min-h-[36px]">
                     <span>Composer mon paquet (2 €)</span>
                     <ArrowRight className="w-4 h-4 text-black group-hover:translate-x-1 transition-transform" />
                   </div>
                 </button>
 
-                {/* Carré 2 : Émulateurs */}
+                {/* Carte 2 : Émulateurs */}
                 <button
                   type="button"
                   onClick={() => goTo('emulateurs')}
-                  className="group aspect-square p-6 sm:p-7 rounded-3xl bg-white border-2 border-black border-b-[7px] hover:border-black active:border-b-2 active:translate-y-1 text-left transition-all hover:-translate-y-1.5 shadow-[0_4px_12px_rgba(0,0,0,0.06)] cursor-pointer flex flex-col justify-between"
+                  className="group rounded-3xl bg-white border-2 border-black border-b-[6px] sm:border-b-[7px] p-5 sm:p-7 text-left transition-all active:border-b-2 active:translate-y-1 hover:-translate-y-1.5 shadow-[0_4px_12px_rgba(0,0,0,0.06)] cursor-pointer flex flex-col justify-between min-h-[210px] md:aspect-square active:scale-[0.99]"
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between mb-3">
                     <span className="inline-flex items-center justify-center p-2.5 rounded-2xl bg-sky-100 text-sky-800 border-2 border-black shadow-[1px_1px_0px_#000] group-hover:scale-110 transition-transform">
                       <Gamepad2 className="w-5 h-5" />
                     </span>
-                    <span className="text-[11px] font-mono font-black text-black bg-sky-200 border border-black px-2 py-0.5 rounded-md shadow-[1px_1px_0px_#000]">
+                    <span className="text-[11px] font-mono font-black text-black bg-sky-200 border border-black px-2.5 py-0.5 rounded-md shadow-[1px_1px_0px_#000]">
                       3 € ou 4 € (1 jeu)
                     </span>
                   </div>
 
-                  <div>
-                    <h2 className="text-xl sm:text-2xl font-black text-black group-hover:text-sky-700 transition-colors mb-1.5">
+                  <div className="my-auto py-1">
+                    <h2 className="text-xl sm:text-2xl font-black text-black group-hover:text-sky-700 transition-colors mb-1">
                       Émulateurs
                     </h2>
                     <p className="text-xs text-neutral-600 font-medium leading-snug">
@@ -913,29 +921,29 @@ export default function App() {
                     </p>
                   </div>
 
-                  <div className="text-[11px] font-mono font-bold text-sky-900 pt-2 border-t-2 border-neutral-100 flex items-center justify-between">
+                  <div className="text-[11px] font-mono font-bold text-sky-900 pt-3 border-t-2 border-neutral-100 flex items-center justify-between min-h-[36px]">
                     <span>Choisir mon jeu (3 € ou 4 €)</span>
                     <ArrowRight className="w-4 h-4 text-black group-hover:translate-x-1 transition-transform" />
                   </div>
                 </button>
 
-                {/* Carré 3 : Appli */}
+                {/* Carte 3 : Appli */}
                 <button
                   type="button"
                   onClick={() => goTo('applications')}
-                  className="group aspect-square p-6 sm:p-7 rounded-3xl bg-white border-2 border-black border-b-[7px] hover:border-black active:border-b-2 active:translate-y-1 text-left transition-all hover:-translate-y-1.5 shadow-[0_4px_12px_rgba(0,0,0,0.06)] cursor-pointer flex flex-col justify-between"
+                  className="group rounded-3xl bg-white border-2 border-black border-b-[6px] sm:border-b-[7px] p-5 sm:p-7 text-left transition-all active:border-b-2 active:translate-y-1 hover:-translate-y-1.5 shadow-[0_4px_12px_rgba(0,0,0,0.06)] cursor-pointer flex flex-col justify-between min-h-[210px] md:aspect-square active:scale-[0.99]"
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between mb-3">
                     <span className="inline-flex items-center justify-center p-2.5 rounded-2xl bg-emerald-100 text-emerald-800 border-2 border-black shadow-[1px_1px_0px_#000] group-hover:scale-110 transition-transform">
                       <LayoutGrid className="w-5 h-5" />
                     </span>
-                    <span className="text-[11px] font-mono font-black text-black bg-emerald-200 border border-black px-2 py-0.5 rounded-md shadow-[1px_1px_0px_#000]">
+                    <span className="text-[11px] font-mono font-black text-black bg-emerald-200 border border-black px-2.5 py-0.5 rounded-md shadow-[1px_1px_0px_#000]">
                       4 € ou 5 € (1 seule)
                     </span>
                   </div>
 
-                  <div>
-                    <h2 className="text-xl sm:text-2xl font-black text-black group-hover:text-emerald-700 transition-colors mb-1.5">
+                  <div className="my-auto py-1">
+                    <h2 className="text-xl sm:text-2xl font-black text-black group-hover:text-emerald-700 transition-colors mb-1">
                       Appli
                     </h2>
                     <p className="text-xs text-neutral-600 font-medium leading-snug">
@@ -943,7 +951,7 @@ export default function App() {
                     </p>
                   </div>
 
-                  <div className="text-[11px] font-mono font-bold text-emerald-900 pt-2 border-t-2 border-neutral-100 flex items-center justify-between">
+                  <div className="text-[11px] font-mono font-bold text-emerald-900 pt-3 border-t-2 border-neutral-100 flex items-center justify-between min-h-[36px]">
                     <span>Choisir mon application (4 € ou 5 €)</span>
                     <ArrowRight className="w-4 h-4 text-black group-hover:translate-x-1 transition-transform" />
                   </div>
@@ -962,39 +970,39 @@ export default function App() {
               
               {/* Entête de la page dédiée avec bouton retour */}
               <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 mb-2 border-b-2 border-neutral-200 shrink-0">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5">
                   <button
                     type="button"
                     onClick={() => goTo('home')}
-                    className="p-1.5 rounded-xl bg-white text-black hover:bg-neutral-100 border-2 border-black shadow-[1px_1px_0px_#000] transition-colors cursor-pointer"
-                    title="Retour aux 3 carrés"
+                    className="p-2 rounded-xl bg-white text-black hover:bg-neutral-100 border-2 border-black shadow-[1px_1px_0px_#000] transition-colors cursor-pointer min-h-[40px] min-w-[40px] flex items-center justify-center active:scale-95"
+                    title="Retour aux catégories"
                   >
                     <ArrowLeft className="w-4 h-4" />
                   </button>
 
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="p-1.5 rounded-lg bg-amber-100 border-2 border-black text-neutral-950 inline-flex items-center justify-center shadow-[1px_1px_0px_#000]">
                         {currentPage === 'python' && <PythonIcon className="w-4 h-4 text-amber-700" />}
                         {currentPage === 'emulateurs' && <Gamepad2 className="w-4 h-4 text-sky-700" />}
                         {currentPage === 'applications' && <LayoutGrid className="w-4 h-4 text-emerald-700" />}
                       </span>
-                      <h2 className="text-lg sm:text-xl font-black text-black">
+                      <h2 className="text-base sm:text-xl font-black text-black">
                         {currentCategoryConfig.title}
                       </h2>
                       {currentPage === 'python' && (
-                        <span className="ml-1 text-[11px] font-mono font-black text-black bg-amber-300 border border-black px-2.5 py-0.5 rounded-full shadow-[1px_1px_0px_#000]">
-                          Paquet de 3 à 2 €
+                        <span className="text-[10px] sm:text-[11px] font-mono font-black text-black bg-amber-300 border border-black px-2 py-0.5 rounded-full shadow-[1px_1px_0px_#000]">
+                          3 pour 2 €
                         </span>
                       )}
                       {currentPage === 'emulateurs' && (
-                        <span className="ml-1 text-[11px] font-mono font-black text-black bg-sky-200 border border-black px-2.5 py-0.5 rounded-full shadow-[1px_1px_0px_#000]">
-                          1 seul jeu : 3 € (N&B) · 4 € (Couleur)
+                        <span className="text-[10px] sm:text-[11px] font-mono font-black text-black bg-sky-200 border border-black px-2 py-0.5 rounded-full shadow-[1px_1px_0px_#000]">
+                          3 € (N&B) · 4 € (Couleur)
                         </span>
                       )}
                       {currentPage === 'applications' && (
-                        <span className="ml-1 text-[11px] font-mono font-black text-black bg-emerald-200 border border-black px-2.5 py-0.5 rounded-full shadow-[1px_1px_0px_#000]">
-                          1 seule appli : 4 € ou 5 €
+                        <span className="text-[10px] sm:text-[11px] font-mono font-black text-black bg-emerald-200 border border-black px-2 py-0.5 rounded-full shadow-[1px_1px_0px_#000]">
+                          4 € ou 5 €
                         </span>
                       )}
                     </div>
@@ -1003,11 +1011,11 @@ export default function App() {
 
                 {/* Subcategory filter for Python: All, Jeux & Arcade, Réflexion */}
                 {currentPage === 'python' && (
-                  <div className="flex items-center gap-1 bg-white border-2 border-black p-1 rounded-xl text-xs shadow-[1px_1px_0px_#000]">
+                  <div className="flex items-center gap-1 bg-white border-2 border-black p-1 rounded-xl text-xs shadow-[1px_1px_0px_#000] overflow-x-auto max-w-full no-scrollbar">
                     <button
                       type="button"
                       onClick={() => setPythonSubFilter('all')}
-                      className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer font-bold ${
+                      className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer font-bold whitespace-nowrap min-h-[34px] ${
                         pythonSubFilter === 'all'
                           ? 'bg-black text-white'
                           : 'text-neutral-700 hover:text-black hover:bg-neutral-100'
@@ -1018,18 +1026,18 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => setPythonSubFilter('Jeux & Arcade')}
-                      className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer font-bold ${
+                      className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer font-bold whitespace-nowrap min-h-[34px] ${
                         pythonSubFilter === 'Jeux & Arcade'
                           ? 'bg-black text-white'
                           : 'text-neutral-700 hover:text-black hover:bg-neutral-100'
                       }`}
                     >
-                      🎮 Jeux & Arcade (13)
+                      🎮 Jeux (13)
                     </button>
                     <button
                       type="button"
                       onClick={() => setPythonSubFilter('Réflexion & Échecs')}
-                      className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer font-bold ${
+                      className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer font-bold whitespace-nowrap min-h-[34px] ${
                         pythonSubFilter === 'Réflexion & Échecs'
                           ? 'bg-black text-white'
                           : 'text-neutral-700 hover:text-black hover:bg-neutral-100'
@@ -1042,11 +1050,11 @@ export default function App() {
 
                 {/* Subcategory filter for Émulateurs: All, Jeux en Couleur, Noir & Blanc */}
                 {currentPage === 'emulateurs' && (
-                  <div className="flex items-center gap-1 bg-white border-2 border-black p-1 rounded-xl text-xs shadow-[1px_1px_0px_#000]">
+                  <div className="flex items-center gap-1 bg-white border-2 border-black p-1 rounded-xl text-xs shadow-[1px_1px_0px_#000] overflow-x-auto max-w-full no-scrollbar">
                     <button
                       type="button"
                       onClick={() => setEmuSubFilter('all')}
-                      className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer font-bold ${
+                      className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer font-bold whitespace-nowrap min-h-[34px] ${
                         emuSubFilter === 'all'
                           ? 'bg-black text-white'
                           : 'text-neutral-700 hover:text-black hover:bg-neutral-100'
@@ -1057,19 +1065,19 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => setEmuSubFilter('color')}
-                      className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer font-black flex items-center gap-1.5 ${
+                      className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer font-black flex items-center gap-1.5 whitespace-nowrap min-h-[34px] ${
                         emuSubFilter === 'color'
                           ? 'bg-amber-300 text-black border border-black shadow-[1px_1px_0px_#000]'
                           : 'text-neutral-800 hover:text-black hover:bg-amber-50'
                       }`}
                     >
                       <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                      <span>🎨 En Couleur · 4 € (3)</span>
+                      <span>🎨 Couleur · 4 € (3)</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setEmuSubFilter('classic')}
-                      className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer font-bold ${
+                      className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer font-bold whitespace-nowrap min-h-[34px] ${
                         emuSubFilter === 'classic'
                           ? 'bg-black text-white'
                           : 'text-neutral-700 hover:text-black hover:bg-neutral-100'
@@ -1082,11 +1090,11 @@ export default function App() {
 
                 {/* Subcategory filter for Applications: Toutes, Super App (5€), Individuelle (4€) */}
                 {currentPage === 'applications' && (
-                  <div className="flex items-center gap-1 bg-white border-2 border-black p-1 rounded-xl text-xs shadow-[1px_1px_0px_#000]">
+                  <div className="flex items-center gap-1 bg-white border-2 border-black p-1 rounded-xl text-xs shadow-[1px_1px_0px_#000] overflow-x-auto max-w-full no-scrollbar">
                     <button
                       type="button"
                       onClick={() => setAppSubFilter('all')}
-                      className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer font-bold ${
+                      className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer font-bold whitespace-nowrap min-h-[34px] ${
                         appSubFilter === 'all'
                           ? 'bg-black text-white'
                           : 'text-neutral-700 hover:text-black hover:bg-neutral-100'
@@ -1097,7 +1105,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => setAppSubFilter('super')}
-                      className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer font-black flex items-center gap-1.5 ${
+                      className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer font-black flex items-center gap-1.5 whitespace-nowrap min-h-[34px] ${
                         appSubFilter === 'super'
                           ? 'bg-amber-300 text-black border border-black shadow-[1px_1px_0px_#000]'
                           : 'text-neutral-800 hover:text-black hover:bg-amber-50'
@@ -1108,7 +1116,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => setAppSubFilter('individual')}
-                      className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer font-bold ${
+                      className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer font-bold whitespace-nowrap min-h-[34px] ${
                         appSubFilter === 'individual'
                           ? 'bg-black text-white'
                           : 'text-neutral-700 hover:text-black hover:bg-neutral-100'
@@ -1120,16 +1128,51 @@ export default function App() {
                 )}
               </div>
 
+              {/* Indicateur mobile 2 étapes (visible uniquement sur mobile < md) */}
+              <div className="flex md:hidden items-center justify-between bg-white border-2 border-black rounded-2xl p-1.5 mb-2.5 shadow-[2px_2px_0px_#000]">
+                <button
+                  type="button"
+                  onClick={() => setMobileStep('select')}
+                  className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-black text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 min-h-[40px] ${
+                    mobileStep === 'select'
+                      ? 'bg-black text-white shadow-[1px_1px_0px_rgba(0,0,0,0.2)]'
+                      : 'text-neutral-600 hover:text-black'
+                  }`}
+                >
+                  <span className="w-5 h-5 rounded-full bg-amber-400 text-black text-[10px] font-black inline-flex items-center justify-center shrink-0">
+                    1
+                  </span>
+                  <span>1. Sélection des jeux</span>
+                </button>
+
+                <div className="px-1 text-neutral-400 font-bold">→</div>
+
+                <button
+                  type="button"
+                  onClick={() => setMobileStep('details')}
+                  className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-black text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 min-h-[40px] ${
+                    mobileStep === 'details'
+                      ? 'bg-black text-white shadow-[1px_1px_0px_rgba(0,0,0,0.2)]'
+                      : 'text-neutral-600 hover:text-black'
+                  }`}
+                >
+                  <span className="w-5 h-5 rounded-full bg-amber-400 text-black text-[10px] font-black inline-flex items-center justify-center shrink-0">
+                    2
+                  </span>
+                  <span>2. Coordonnées</span>
+                </button>
+              </div>
+
               {/* Contenu de la page : Choix des éléments + Formulaire + LCD */}
               <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 flex-1 min-h-0 overflow-y-auto sm:overflow-visible">
                 
-                {/* Colonne gauche : Puces à cocher de la catégorie (SANS NOM D'AUTEUR) */}
-                <div className="md:col-span-6 flex flex-col justify-between">
+                {/* Colonne gauche (Étape 1 sur mobile / Colonne 1 sur Desktop) */}
+                <div className={`md:col-span-6 flex flex-col justify-between ${mobileStep === 'select' ? 'flex' : 'hidden md:flex'}`}>
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-black text-black uppercase tracking-wider flex items-center gap-1.5">
                         {currentPage === 'emulateurs' ? (
-                          <span>Choisis 1 seul jeu (3 € N&B · 4 € Couleur) :</span>
+                          <span>Choisis 1 seul jeu :</span>
                         ) : currentPage === 'applications' ? (
                           <span>Choisis 1 seule application :</span>
                         ) : (
@@ -1142,12 +1185,12 @@ export default function App() {
                         )}
                         {currentPage === 'emulateurs' && (
                           <span className="text-sky-800 font-mono text-[11px] font-bold">
-                            ({currentSelectedIds.length}/1 sélectionné{emuPrice > 0 ? ` · ${emuPrice} €` : ''})
+                            ({currentSelectedIds.length}/1{emuPrice > 0 ? ` · ${emuPrice} €` : ''})
                           </span>
                         )}
                         {currentPage === 'applications' && (
                           <span className="text-emerald-800 font-mono text-[11px] font-bold">
-                            ({currentSelectedIds.length}/1 sélectionnée{appPrice > 0 ? ` · ${appPrice} €` : ''})
+                            ({currentSelectedIds.length}/1{appPrice > 0 ? ` · ${appPrice} €` : ''})
                           </span>
                         )}
                       </span>
@@ -1161,15 +1204,15 @@ export default function App() {
                               [currentCategoryConfig.key]: [],
                             }))
                           }
-                          className="text-[11px] text-neutral-500 hover:text-black font-semibold cursor-pointer underline"
+                          className="text-[11px] text-neutral-500 hover:text-black font-semibold cursor-pointer underline min-h-[32px] flex items-center"
                         >
-                          Décocher
+                          Tout décocher
                         </button>
                       )}
                     </div>
 
-                    {/* Liste des jeux/scripts */}
-                    <div className="space-y-1.5 max-h-[300px] sm:max-h-[340px] overflow-y-auto pr-1">
+                    {/* Liste des jeux/scripts optimisée pour le toucher */}
+                    <div className="space-y-2 max-h-[380px] md:max-h-[340px] overflow-y-auto pr-1">
                       {currentCategoryItems.map((item) => {
                         const isPicked = currentSelectedIds.includes(item.id);
                         return (
@@ -1179,18 +1222,18 @@ export default function App() {
                             onClick={() =>
                               toggleItemForCurrent(currentCategoryConfig.key, item.id)
                             }
-                            className={`w-full p-2.5 rounded-xl border-2 text-left transition-all flex items-start gap-2.5 text-xs cursor-pointer ${
+                            className={`w-full p-3 rounded-xl border-2 text-left transition-all flex items-start gap-3 text-xs cursor-pointer min-h-[50px] active:scale-[0.99] ${
                               isPicked
                                 ? 'bg-amber-50 border-black shadow-[2px_2px_0px_#000]'
                                 : 'bg-white border-neutral-300 text-neutral-800 hover:border-black'
                             }`}
                           >
-                            {/* Checkbox notation [ ] / [✓] ou Radio (●) pour émulateur et appli */}
+                            {/* Checkbox notation [ ] / [✓] ou Radio (●) */}
                             <span
-                              className={`w-5 h-5 flex items-center justify-center font-mono font-bold shrink-0 text-xs mt-0.5 transition-colors border-2 ${
+                              className={`w-6 h-6 flex items-center justify-center font-mono font-black shrink-0 text-xs mt-0.5 transition-colors border-2 ${
                                 currentPage === 'emulateurs' || currentPage === 'applications'
                                   ? 'rounded-full'
-                                  : 'rounded-md'
+                                  : 'rounded-lg'
                               } ${
                                 isPicked
                                   ? 'bg-black text-white border-black'
@@ -1205,15 +1248,15 @@ export default function App() {
                             </span>
 
                             <div className="truncate flex-1">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-mono font-black text-black text-xs">
+                              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                                <span className="font-mono font-black text-black text-xs sm:text-sm">
                                   {item.title}
                                 </span>
 
                                 {/* Badge très voyant pour les jeux en couleur (4 €) */}
                                 {item.isColor && (
                                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black font-mono tracking-wider bg-amber-300 text-black border-2 border-black shadow-[1px_1px_0px_#000]">
-                                    <span>🎨 JEU EN COULEUR · 4 €</span>
+                                    <span>🎨 COULEUR · 4 €</span>
                                   </span>
                                 )}
 
@@ -1236,7 +1279,7 @@ export default function App() {
                                   </span>
                                 )}
                               </div>
-                              <div className="text-[11px] text-neutral-600 leading-snug mt-0.5 line-clamp-1">
+                              <div className="text-[11px] text-neutral-600 leading-snug mt-1 line-clamp-2">
                                 {item.description}
                               </div>
                             </div>
@@ -1246,55 +1289,101 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Écran LCD authentique NumWorks (fond clair, bordure noire, texte DM Mono) */}
-                  <div className="mt-2.5 p-3 rounded-xl bg-white border-3 border-black font-mono text-xs text-black shadow-[inset_0_2px_6px_rgba(0,0,0,0.1)]">
-                    <div className="text-black font-black text-[11px] flex justify-between border-b border-neutral-200 pb-1 mb-1">
-                      <span>&gt; {currentCategoryConfig.title.toUpperCase()}</span>
-                      {currentPage === 'python' && (
-                        <span className="text-amber-700 font-black">
-                          {pythonCount > 0 ? `TOTAL : ${pythonPrice} € (${pythonPacks} paquet${pythonPacks > 1 ? 's' : ''})` : '2 € LE PAQUET DE 3'}
-                        </span>
-                      )}
-                      {currentPage === 'emulateurs' && (
-                        <span className="text-sky-800 font-black">
-                          {emuCount > 0
-                            ? `PRIX : ${emuPrice} € (${selectedEmu?.isColor ? 'COULEUR' : 'NOIR & BLANC'})`
-                            : '1 SEUL EMULATEUR (3 € N&B / 4 € COULEUR)'}
-                        </span>
-                      )}
-                      {currentPage === 'applications' && (
-                        <span className="text-emerald-800 font-black">
-                          {appCount > 0 ? `PRIX : ${appPrice} € (1 SEULE APPLI)` : '1 SEULE APPLI POSSIBLE (4 € / 5 €)'}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-neutral-900 font-bold text-[11px] truncate">
-                      &gt; {prenom || nom ? `${prenom} ${nom}`.trim() : 'Nom Prénom...'}
-                    </div>
-                    <div className="text-neutral-700 text-[11px] truncate">
-                      &gt; {currentSelectedTitles.length > 0
-                        ? currentSelectedTitles.join(', ')
-                        : currentPage === 'python'
-                        ? 'Aucun script coché'
-                        : currentPage === 'emulateurs'
-                        ? 'Aucun émulateur sélectionné'
-                        : 'Aucune application sélectionnée'}
-                    </div>
-                    {currentPage === 'python' && pythonCount > 0 && pythonRemainingToFullPack > 0 && (
-                      <div className="text-amber-800 text-[10px] pt-1 font-semibold">
-                        &gt; Astuce : tu peux encore choisir {pythonRemainingToFullPack} script{pythonRemainingToFullPack > 1 ? 's' : ''} sans surcoût dans ton paquet !
+                  {/* Écran LCD authentique NumWorks : compact avec accordéon sur mobile, grand sur desktop */}
+                  <div className="mt-3 p-3 rounded-xl bg-white border-3 border-black font-mono text-xs text-black shadow-[inset_0_2px_6px_rgba(0,0,0,0.1)]">
+                    <div className="text-black font-black text-[11px] flex items-center justify-between border-b border-neutral-200 pb-1 mb-1">
+                      <span className="truncate">&gt; {currentCategoryConfig.title.toUpperCase()}</span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {currentPage === 'python' && (
+                          <span className="text-amber-700 font-black">
+                            {pythonCount > 0 ? `TOTAL : ${pythonPrice} €` : '2 € LE PAQUET DE 3'}
+                          </span>
+                        )}
+                        {currentPage === 'emulateurs' && (
+                          <span className="text-sky-800 font-black">
+                            {emuCount > 0
+                              ? `PRIX : ${emuPrice} €`
+                              : '3 € N&B / 4 € COULEUR'}
+                          </span>
+                        )}
+                        {currentPage === 'applications' && (
+                          <span className="text-emerald-800 font-black">
+                            {appCount > 0 ? `PRIX : ${appPrice} €` : '4 € / 5 €'}
+                          </span>
+                        )}
+                        {/* Toggle pour afficher ou cacher le détail de l'écran LCD sur mobile */}
+                        <button
+                          type="button"
+                          onClick={() => setMobileShowLcd(!mobileShowLcd)}
+                          className="md:hidden text-[10px] text-neutral-700 hover:text-black font-bold underline px-1 cursor-pointer"
+                        >
+                          {mobileShowLcd ? 'Masquer' : 'Aperçu LCD'}
+                        </button>
                       </div>
-                    )}
+                    </div>
+
+                    <div className={`${mobileShowLcd ? 'block' : 'hidden md:block'} space-y-0.5 pt-0.5`}>
+                      <div className="text-neutral-900 font-bold text-[11px] truncate">
+                        &gt; {prenom || nom ? `${prenom} ${nom}`.trim() : 'Nom Prénom...'}
+                      </div>
+                      <div className="text-neutral-700 text-[11px] truncate">
+                        &gt; {currentSelectedTitles.length > 0
+                          ? currentSelectedTitles.join(', ')
+                          : currentPage === 'python'
+                          ? 'Aucun script coché'
+                          : currentPage === 'emulateurs'
+                          ? 'Aucun émulateur sélectionné'
+                          : 'Aucune application sélectionnée'}
+                      </div>
+                      {currentPage === 'python' && pythonCount > 0 && pythonRemainingToFullPack > 0 && (
+                        <div className="text-amber-800 text-[10px] pt-1 font-semibold">
+                          &gt; Astuce : tu peux encore choisir {pythonRemainingToFullPack} script{pythonRemainingToFullPack > 1 ? 's' : ''} sans surcoût !
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                {/* Colonne droite : Formulaire de commande Noir sur Blanc */}
+                {/* Colonne droite (Étape 2 sur mobile / Colonne 2 sur Desktop) : Formulaire */}
                 <form
                   onSubmit={handleSubmit}
-                  className="md:col-span-6 bg-white border-2 border-black rounded-2xl p-4 sm:p-5 flex flex-col justify-between shadow-[3px_3px_0px_#000]"
+                  className={`md:col-span-6 bg-white border-2 border-black rounded-3xl p-4 sm:p-5 flex flex-col justify-between shadow-[3px_3px_0px_#000] ${mobileStep === 'details' ? 'flex' : 'hidden md:flex'}`}
                 >
-                  <div className="space-y-2.5">
-                    <div className="flex items-center justify-between text-xs font-black text-black uppercase tracking-wider pb-1 border-b border-neutral-200">
+                  <div className="space-y-3">
+                    
+                    {/* Bouton retour vers l'étape 1 (visible uniquement sur mobile) */}
+                    <div className="md:hidden">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMobileStep('select');
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        className="w-full min-h-[44px] py-2 px-3 bg-neutral-100 hover:bg-neutral-200 text-black border-2 border-black rounded-xl text-xs font-black flex items-center justify-center gap-2 cursor-pointer shadow-[1px_1px_0px_#000] active:scale-95"
+                      >
+                        <ArrowLeft className="w-4 h-4" />
+                        <span>← Modifier ma sélection ({currentSelectedTitles.length} article{currentSelectedTitles.length > 1 ? 's' : ''})</span>
+                      </button>
+                    </div>
+
+                    {/* Récapitulatif clair de la commande sur mobile */}
+                    <div className="md:hidden p-3 bg-amber-50 border-2 border-black rounded-2xl text-xs shadow-[2px_2px_0px_#000]">
+                      <div className="flex items-center justify-between font-black text-black mb-1">
+                        <span className="uppercase tracking-tight text-[11px]">Articles choisis :</span>
+                        <span className="font-mono bg-amber-300 border border-black px-2 py-0.5 rounded text-[11px] font-black">
+                          {currentPage === 'python'
+                            ? pythonCount > 0 ? `${pythonPrice} €` : '2 €'
+                            : currentPage === 'emulateurs'
+                            ? emuCount > 0 ? `${emuPrice} €` : '3 € / 4 €'
+                            : appCount > 0 ? `${appPrice} €` : '4 € / 5 €'}
+                        </span>
+                      </div>
+                      <div className="font-mono text-[11px] text-neutral-800 line-clamp-2">
+                        {currentSelectedTitles.length > 0 ? currentSelectedTitles.join(', ') : 'Aucun jeu sélectionné'}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs font-black text-black uppercase tracking-wider pb-1.5 border-b border-neutral-200">
                       <span>Coordonnées de commande</span>
                       {currentPage === 'python' && (
                         <span className="text-black bg-amber-300 border border-black px-2 py-0.5 rounded font-mono font-black text-xs shadow-[1px_1px_0px_#000]">
@@ -1308,63 +1397,63 @@ export default function App() {
                       )}
                       {currentPage === 'applications' && (
                         <span className="text-black bg-emerald-200 border border-black px-2 py-0.5 rounded font-mono font-black text-xs shadow-[1px_1px_0px_#000]">
-                          {appCount > 0 ? `${appPrice} € (1 appli)` : '1 app max (4 € / 5 €)'}
+                          {appCount > 0 ? `${appPrice} € (1 appli)` : '4 € / 5 €'}
                         </span>
                       )}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <label className="block space-y-1">
-                        <span className="text-[11px] font-black text-black">Prénom *</span>
+                        <span className="text-xs font-black text-black">Prénom *</span>
                         <input
                           type="text"
                           required
                           value={prenom}
                           onChange={(e) => setPrenom(e.target.value)}
                           placeholder="Ton prénom"
-                          className="w-full bg-neutral-50 border-2 border-neutral-300 focus:border-black text-black rounded-lg p-2 text-xs focus:outline-none"
+                          className="w-full bg-neutral-50 border-2 border-neutral-300 focus:border-black text-black rounded-xl p-3 text-base sm:text-xs focus:outline-none min-h-[46px]"
                         />
                       </label>
 
                       <label className="block space-y-1">
-                        <span className="text-[11px] font-black text-black">Nom *</span>
+                        <span className="text-xs font-black text-black">Nom *</span>
                         <input
                           type="text"
                           required
                           value={nom}
                           onChange={(e) => setNom(e.target.value)}
                           placeholder="Ton nom"
-                          className="w-full bg-neutral-50 border-2 border-neutral-300 focus:border-black text-black rounded-lg p-2 text-xs focus:outline-none"
+                          className="w-full bg-neutral-50 border-2 border-neutral-300 focus:border-black text-black rounded-xl p-3 text-base sm:text-xs focus:outline-none min-h-[46px]"
                         />
                       </label>
                     </div>
 
                     <label className="block space-y-1">
-                      <span className="text-[11px] font-black text-black">
+                      <span className="text-xs font-black text-black">
                         Remarque ou précision (optionnel)
                       </span>
                       <textarea
                         rows={2}
                         value={demandeLibre}
                         onChange={(e) => setDemandeLibre(e.target.value)}
-                        placeholder="Ex: Une précision sur ta console ou version ?"
-                        className="w-full bg-neutral-50 border-2 border-neutral-300 focus:border-black text-black rounded-lg p-2 text-xs focus:outline-none resize-none"
+                        placeholder="Ex: Version de la calculatrice, modèle blanc ou noir..."
+                        className="w-full bg-neutral-50 border-2 border-neutral-300 focus:border-black text-black rounded-xl p-3 text-base sm:text-xs focus:outline-none resize-none"
                       />
                     </label>
 
-                    {/* Rappel prix & règlement */}
-                    <div className="text-[11px] text-neutral-700 bg-neutral-50 p-2.5 rounded-lg border border-neutral-200 flex items-center justify-between">
+                    {/* Rappel prix & règlement tactile */}
+                    <div className="text-xs text-neutral-700 bg-neutral-50 p-3 rounded-xl border border-neutral-200 flex items-center justify-between">
                       <span className="font-black text-black">Règlement en main propre :</span>
-                      <span className="text-black font-mono font-bold">
+                      <span className="text-black font-mono font-bold text-xs sm:text-sm">
                         {currentPage === 'python' && (pythonCount > 0 ? `${pythonPrice} €` : '2 € le paquet de 3')}
-                        {currentPage === 'emulateurs' && (emuCount > 0 ? `${emuPrice} € (${selectedEmu?.isColor ? '1 émulateur couleur 4 €' : '1 émulateur noir & blanc 3 €'})` : '1 émulateur (3 € N&B · 4 € Couleur)')}
-                        {currentPage === 'applications' && (appCount > 0 ? `${appPrice} € (1 application)` : '1 seule application (4 € indiv. / 5 € super app)')}
+                        {currentPage === 'emulateurs' && (emuCount > 0 ? `${emuPrice} € (${selectedEmu?.isColor ? '1 couleur 4 €' : '1 noir & blanc 3 €'})` : '3 € N&B · 4 € Couleur')}
+                        {currentPage === 'applications' && (appCount > 0 ? `${appPrice} € (1 application)` : '4 € indiv. / 5 € super app')}
                       </span>
                     </div>
                   </div>
 
-                  <div className="pt-2.5 border-t border-neutral-200 flex items-center justify-between gap-3 mt-2">
-                    <span className="text-xs font-mono font-bold text-neutral-700">
+                  <div className="pt-3 border-t border-neutral-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mt-3">
+                    <span className="text-xs font-mono font-bold text-neutral-700 text-center sm:text-left">
                       {currentPage === 'emulateurs' ? (
                         <span>
                           {currentSelectedIds.length}/1 émulateur
@@ -1390,15 +1479,47 @@ export default function App() {
                     <button
                       type="submit"
                       disabled={!prenom.trim() || !nom.trim()}
-                      className="px-6 py-2.5 bg-black hover:bg-neutral-800 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-[2px_2px_0px_rgba(0,0,0,0.3)] flex items-center gap-1.5 cursor-pointer"
+                      className="w-full sm:w-auto min-h-[50px] px-6 py-3 bg-black hover:bg-neutral-800 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-xs sm:text-sm uppercase tracking-wider rounded-xl transition-all shadow-[2px_2px_0px_rgba(0,0,0,0.3)] flex items-center justify-center gap-2 cursor-pointer active:scale-95"
                     >
-                      <Send className="w-3.5 h-3.5" />
+                      <Send className="w-4 h-4 text-amber-400" />
                       <span>Envoyer ma commande</span>
                     </button>
                   </div>
                 </form>
 
               </div>
+
+              {/* BARRE D'ACTION MOBILE FIXÉE EN BAS (Uniquement sur mobile et Étape 1) */}
+              {mobileStep === 'select' && (
+                <div className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t-2 border-black p-3.5 md:hidden shadow-[0_-4px_16px_rgba(0,0,0,0.12)]">
+                  <div className="max-w-md mx-auto flex items-center justify-between gap-3">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-mono font-bold text-neutral-500 uppercase tracking-tight">
+                        {currentPage === 'python' ? 'Paquet en cours' : 'Sélection'}
+                      </span>
+                      <span className="text-sm font-mono font-black text-black">
+                        {currentPage === 'python'
+                          ? `${pythonCount} script${pythonCount > 1 ? 's' : ''} · ${pythonCount > 0 ? `${pythonPrice} €` : '2 € / 3'}`
+                          : currentPage === 'emulateurs'
+                          ? emuCount > 0 ? `${emuPrice} € (${selectedEmu?.isColor ? 'Couleur' : 'N&B'})` : '3 € ou 4 €'
+                          : appCount > 0 ? `${appPrice} € (${selectedApp?.isSuperApp ? 'Super App' : '1 App'})` : '4 € ou 5 €'}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileStep('details');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className="min-h-[48px] px-5 py-2.5 bg-black hover:bg-neutral-800 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-[2px_2px_0px_rgba(0,0,0,0.3)] flex items-center gap-2 cursor-pointer"
+                    >
+                      <span>Coordonnées</span>
+                      <ArrowRight className="w-4 h-4 text-amber-400" />
+                    </button>
+                  </div>
+                </div>
+              )}
 
             </div>
           )}
@@ -1434,14 +1555,14 @@ export default function App() {
                   <strong>Consigne avant de me donner ta calculatrice :</strong> Écris ton nom ({receipt.prenom} {receipt.nom}) et le code <strong>#{receipt.ticketId}</strong> sur un morceau de scotch au dos de ta calculatrice. Tu paies {receipt.totalPrice || 'en main propre'} au moment où tu me la donnes.
                 </div>
 
-                <div className="flex flex-wrap items-center justify-center gap-2.5">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2.5">
                   <button
                     type="button"
                     onClick={copyReceipt}
-                    className="px-3.5 py-2.5 bg-neutral-100 hover:bg-neutral-200 text-black border-2 border-black rounded-xl text-xs font-black flex items-center gap-1.5 transition-colors cursor-pointer shadow-[2px_2px_0px_#000]"
+                    className="w-full sm:w-auto min-h-[46px] px-4 py-3 bg-neutral-100 hover:bg-neutral-200 text-black border-2 border-black rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-[2px_2px_0px_#000] active:scale-95"
                   >
-                    {copied ? <CheckCheck className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copied ? 'Copié !' : 'Copier le texte'}</span>
+                    {copied ? <CheckCheck className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                    <span>{copied ? 'Copié dans le presse-papier !' : 'Copier le texte du ticket'}</span>
                   </button>
 
                   <button
@@ -1452,7 +1573,7 @@ export default function App() {
                       setDemandeLibre('');
                       goTo('home');
                     }}
-                    className="px-4 py-2.5 bg-black hover:bg-neutral-800 text-white font-black rounded-xl text-xs transition-colors cursor-pointer shadow-[2px_2px_0px_rgba(0,0,0,0.2)]"
+                    className="w-full sm:w-auto min-h-[46px] px-5 py-3 bg-black hover:bg-neutral-800 text-white font-black rounded-xl text-xs transition-colors cursor-pointer shadow-[2px_2px_0px_rgba(0,0,0,0.2)] active:scale-95 flex items-center justify-center"
                   >
                     Retour à l'accueil
                   </button>
@@ -2081,11 +2202,11 @@ export default function App() {
                           <span className="text-[11px] font-bold text-neutral-600">
                             Statut actuel :
                           </span>
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <button
                               type="button"
                               onClick={() => updateOrderStatus(order.id, 'En attente')}
-                              className={`px-2.5 py-1 rounded-lg text-[11px] font-black border transition-all cursor-pointer ${
+                              className={`min-h-[36px] px-3 py-1.5 rounded-lg text-[11px] font-black border transition-all cursor-pointer active:scale-95 ${
                                 order.status === 'En attente'
                                   ? 'bg-amber-300 text-black border-black shadow-[1px_1px_0px_#000]'
                                   : 'bg-neutral-50 text-neutral-600 border-neutral-200 hover:border-neutral-400'
@@ -2096,7 +2217,7 @@ export default function App() {
                             <button
                               type="button"
                               onClick={() => updateOrderStatus(order.id, 'Prêt')}
-                              className={`px-2.5 py-1 rounded-lg text-[11px] font-black border transition-all cursor-pointer ${
+                              className={`min-h-[36px] px-3 py-1.5 rounded-lg text-[11px] font-black border transition-all cursor-pointer active:scale-95 ${
                                 order.status === 'Prêt'
                                   ? 'bg-sky-300 text-black border-black shadow-[1px_1px_0px_#000]'
                                   : 'bg-neutral-50 text-neutral-600 border-neutral-200 hover:border-neutral-400'
@@ -2107,7 +2228,7 @@ export default function App() {
                             <button
                               type="button"
                               onClick={() => updateOrderStatus(order.id, 'Terminé')}
-                              className={`px-2.5 py-1 rounded-lg text-[11px] font-black border transition-all cursor-pointer ${
+                              className={`min-h-[36px] px-3 py-1.5 rounded-lg text-[11px] font-black border transition-all cursor-pointer active:scale-95 ${
                                 order.status === 'Terminé'
                                   ? 'bg-emerald-300 text-black border-black shadow-[1px_1px_0px_#000]'
                                   : 'bg-neutral-50 text-neutral-600 border-neutral-200 hover:border-neutral-400'

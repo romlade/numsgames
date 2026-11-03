@@ -1,0 +1,6 @@
+{
+  "summary": "Plan d'optimisation de l'interface mobile pour NumsGames :\n- Déploiement d'un tunnel de commande mobile en 2 étapes (1. Sélection tactile des jeux avec barre sticky basse, 2. Formulaire coordonnées élève et confirmation)\n- Préservation de la vue 2 colonnes pour écrans d'ordinateur\n- Ergonomie tactile complète (cibles tactiles >= 44px, police 16px sur inputs pour empêcher le zoom forcé iOS, simulateur LCD compact sur smartphone)\n- Optimisation mobile des écrans d'accueil, ticket et panneau administrateur.",
+  "updatedAt": "2026-11-03T20:26:05.076451527Z",
+  "requestFeedback": true,
+  "userFacing": true
+}
