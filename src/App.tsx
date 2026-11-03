@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -21,13 +21,78 @@ import {
   AlertCircle,
   Plus,
   Cloud,
-  FileText
+  FileText,
+  Mail,
+  Bell,
+  ExternalLink
 } from 'lucide-react';
 
 import { collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from './firebase';
 import { CATALOG_ITEMS, CATEGORIES_CONFIG } from './data/catalog';
 import { CategoryKey, StoredOrder } from './types';
+
+export const NOTIFICATION_EMAIL = 'roman.lagardefrance@gmail.com';
+
+// Envoi automatique d'un e-mail récapitulatif dès réception d'une commande
+export async function sendOrderEmailNotification(order: StoredOrder): Promise<{ success: boolean; message?: string }> {
+  try {
+    const payload = {
+      _subject: `[NumsGames] Nouvelle commande #${order.ticketId} - ${order.prenom} ${order.nom}`,
+      _template: 'table',
+      _captcha: 'false',
+      'Numéro de Ticket': `#${order.ticketId}`,
+      'Élève': `${order.prenom} ${order.nom}`,
+      'Catégorie': order.categoryTitle,
+      'Programmes / Jeux': order.items.join(', '),
+      'Montant estimé': order.totalPrice,
+      'Précision / Demande': order.demandeLibre || 'Aucune',
+      'Date': order.date,
+      'Statut': order.status,
+    };
+
+    const res = await fetch(`https://formsubmit.co/ajax/${NOTIFICATION_EMAIL}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (res.ok) {
+      return { success: true };
+    }
+    const data = await res.json().catch(() => ({}));
+    return { success: false, message: data.message || 'Erreur d\'envoi' };
+  } catch (err) {
+    console.warn('Erreur transmission email notification:', err);
+    return { success: false, message: String(err) };
+  }
+}
+
+// Bip sonore discret prévenant Roman quand une commande arrive en direct
+function playNotificationChime() {
+  try {
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(523.25, ctx.currentTime); // Do (C5)
+    osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1); // Mi (E5)
+    osc.frequency.setValueAtTime(783.99, ctx.currentTime + 0.2); // Sol (G5)
+    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.5);
+  } catch {
+    // Audio context indisponible
+  }
+}
 
 // Petit icône Python officiel et net
 function PythonIcon({ className = "w-5 h-5" }: { className?: string }) {
@@ -92,6 +157,10 @@ export default function App() {
   const [manualTicketText, setManualTicketText] = useState('');
   const [showManualImport, setShowManualImport] = useState(false);
   const [importSuccessMsg, setImportSuccessMsg] = useState('');
+  const [emailStatusMsg, setEmailStatusMsg] = useState('');
+  const [isSendingEmailTest, setIsSendingEmailTest] = useState(false);
+  const [showEmailSetup, setShowEmailSetup] = useState(false);
+  const isFirstFirestoreLoadRef = useRef(true);
 
   // Synchronisation en temps réel via Firestore onSnapshot
   useEffect(() => {
@@ -106,6 +175,16 @@ export default function App() {
         });
         // Trier par date / id décroissant (les plus récentes en premier)
         fetchedOrders.sort((a, b) => b.id.localeCompare(a.id));
+
+        // Alerte sonore si une nouvelle commande arrive en direct sur l'ordinateur
+        if (!isFirstFirestoreLoadRef.current) {
+          const hasNewOrder = snapshot.docChanges().some((change) => change.type === 'added');
+          if (hasNewOrder) {
+            playNotificationChime();
+          }
+        }
+        isFirstFirestoreLoadRef.current = false;
+
         setOrders(fetchedOrders);
         try {
           localStorage.setItem('numsgames_orders', JSON.stringify(fetchedOrders));
@@ -126,6 +205,42 @@ export default function App() {
 
     return () => unsubscribe();
   }, []);
+
+  const handleTestEmailNotification = async () => {
+    setIsSendingEmailTest(true);
+    setEmailStatusMsg(`Envoi de l'e-mail de test vers ${NOTIFICATION_EMAIL}...`);
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const testOrder: StoredOrder = {
+      id: `ord_test_${Date.now()}`,
+      ticketId: `TEST-${Math.floor(1000 + Math.random() * 9000)}`,
+      categoryTitle: 'Alerte E-mail NumsGames',
+      prenom: 'Roman',
+      nom: 'Test',
+      items: ['Test Notification NumsGames'],
+      demandeLibre: 'Test automatique d\'alerte email pour Roman',
+      totalPrice: '0 € (Test)',
+      date: dateStr,
+      status: 'En attente',
+    };
+
+    const res = await sendOrderEmailNotification(testOrder);
+    setIsSendingEmailTest(false);
+    if (res.success) {
+      setEmailStatusMsg(`✅ E-mail envoyé avec succès à ${NOTIFICATION_EMAIL} ! Vérifiez votre boîte de réception ou vos spams.`);
+    } else {
+      setShowEmailSetup(true);
+      setEmailStatusMsg(`⚠️ FormSubmit : ${res.message || 'Validation requise'}. Suivez les 3 étapes ci-dessous pour déclencher le lien.`);
+    }
+    setTimeout(() => {
+      setEmailStatusMsg('');
+    }, 10000);
+  };
 
   const handlePinDigit = (digit: string) => {
     if (pinInput.length >= 4) return;
@@ -514,6 +629,11 @@ export default function App() {
       console.warn('Erreur Firestore:', err);
     }
 
+    // 3. Envoi automatique d'un e-mail d'alerte instantané à Roman
+    sendOrderEmailNotification(newStoredOrder).catch((err) => {
+      console.warn('Erreur transmission notification email:', err);
+    });
+
     setReceipt(newReceipt);
     goTo('ticket');
   };
@@ -683,7 +803,7 @@ export default function App() {
                   </div>
 
                   <div className="text-[11px] font-mono font-bold text-emerald-900 pt-2 border-t-2 border-neutral-100 flex items-center justify-between">
-                    <span>Choisir mon application (1 seule)</span>
+                    <span>Choisir mon application (4 € ou 5 €)</span>
                     <ArrowRight className="w-4 h-4 text-black group-hover:translate-x-1 transition-transform" />
                   </div>
                 </button>
@@ -1349,6 +1469,10 @@ export default function App() {
                           <span>Secours Local</span>
                         </span>
                       )}
+                      <span className="text-[10px] font-mono font-bold bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-[1px_1px_0px_#000]">
+                        <Mail className="w-3 h-3 text-amber-700" />
+                        <span>Alerte mail : {NOTIFICATION_EMAIL}</span>
+                      </span>
                     </div>
                     <p className="text-xs text-neutral-600 font-medium">
                       {orders.length} commande{orders.length > 1 ? 's' : ''} enregistrée{orders.length > 1 ? 's' : ''} au total · Synchronisées en direct
@@ -1357,6 +1481,29 @@ export default function App() {
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setShowEmailSetup(!showEmailSetup)}
+                    className={`px-3 py-1.5 rounded-xl border-2 border-black text-xs font-black flex items-center gap-1.5 shadow-[1px_1px_0px_#000] transition-colors cursor-pointer ${
+                      showEmailSetup ? 'bg-amber-400 text-black' : 'bg-amber-100 hover:bg-amber-200 text-black'
+                    }`}
+                    title="Où est le lien d'activation FormSubmit et comment activer les e-mails"
+                  >
+                    <Mail className="w-3.5 h-3.5 text-amber-800" />
+                    <span>{showEmailSetup ? 'Masquer aide e-mail' : 'Où est le lien d\'activation ?'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isSendingEmailTest}
+                    onClick={handleTestEmailNotification}
+                    className="px-3 py-1.5 rounded-xl bg-amber-200 hover:bg-amber-300 text-black border-2 border-black text-xs font-black flex items-center gap-1.5 shadow-[1px_1px_0px_#000] transition-colors cursor-pointer"
+                    title={`Envoyer un e-mail de test à ${NOTIFICATION_EMAIL}`}
+                  >
+                    <Mail className="w-3.5 h-3.5 text-amber-800" />
+                    <span>{isSendingEmailTest ? 'Envoi...' : 'Tester alerte mail'}</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => setShowManualImport(!showManualImport)}
@@ -1391,6 +1538,131 @@ export default function App() {
                   </button>
                 </div>
               </div>
+
+              {/* Guide et formulaire d'activation de l'adresse e-mail */}
+              {showEmailSetup && (
+                <div className="p-4 bg-amber-50 border-b-2 border-black text-black">
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-2">
+                      <Mail className="w-5 h-5 text-amber-700" />
+                      <h3 className="text-sm font-black text-black">
+                        Pourquoi vous ne recevez pas encore d'e-mail & Où est le lien ?
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowEmailSetup(false)}
+                      className="text-neutral-500 hover:text-black cursor-pointer p-1"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <p className="text-xs text-neutral-800 mb-3 leading-relaxed">
+                    <strong>Explication :</strong> FormSubmit exige une confirmation de sécurité <em>unique</em> pour l'adresse <strong>{NOTIFICATION_EMAIL}</strong>. Tant que vous n'avez pas cliqué sur leur lien de confirmation, FormSubmit rejette silencieusement les e-mails automatiques. Voici les 3 étapes rapides pour débloquer :
+                  </p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {/* Étape 1 */}
+                    <div className="p-3 bg-white rounded-xl border-2 border-black shadow-[2px_2px_0px_#000] flex flex-col justify-between">
+                      <div>
+                        <div className="text-[10px] font-mono font-black text-amber-800 bg-amber-200 px-2 py-0.5 rounded-md inline-block mb-1.5 border border-black">
+                          ÉTAPE 1
+                        </div>
+                        <h4 className="text-xs font-black text-black mb-1">
+                          Déclencher le mail d'activation
+                        </h4>
+                        <p className="text-[11px] text-neutral-600 mb-2">
+                          Cliquez sur le bouton ci-dessous pour ouvrir FormSubmit et forcer l'envoi de l'e-mail de validation.
+                        </p>
+                      </div>
+                      <form
+                        action={`https://formsubmit.co/${NOTIFICATION_EMAIL}`}
+                        method="POST"
+                        target="_blank"
+                      >
+                        <input type="hidden" name="_subject" value="NumsGames - Activation des alertes commandes" />
+                        <input type="hidden" name="Message" value="Bienvenue Roman ! Cliquez sur le lien pour activer la reception des commandes NumsGames." />
+                        <button
+                          type="submit"
+                          className="w-full px-3 py-2 bg-amber-400 hover:bg-amber-300 text-black border-2 border-black rounded-lg font-black text-xs flex items-center justify-center gap-1.5 shadow-[1px_1px_0px_#000] active:translate-y-0.5 cursor-pointer"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          <span>1. Déclencher le mail</span>
+                        </button>
+                      </form>
+                    </div>
+
+                    {/* Étape 2 */}
+                    <div className="p-3 bg-white rounded-xl border-2 border-black shadow-[2px_2px_0px_#000] flex flex-col justify-between">
+                      <div>
+                        <div className="text-[10px] font-mono font-black text-amber-800 bg-amber-200 px-2 py-0.5 rounded-md inline-block mb-1.5 border border-black">
+                          ÉTAPE 2
+                        </div>
+                        <h4 className="text-xs font-black text-black mb-1">
+                          Où est le lien dans Gmail ?
+                        </h4>
+                        <ul className="text-[11px] text-neutral-700 space-y-1 list-disc list-inside">
+                          <li>Ouvrez votre Gmail : <strong>{NOTIFICATION_EMAIL}</strong></li>
+                          <li className="text-red-700 font-bold">⚠️ Regardez impérativement dans vos SPAMS / POURRIELS !</li>
+                          <li>Expéditeur : <code>submissions@formsubmit.co</code></li>
+                          <li>Objet : <em>« Action Required: Confirm your form at FormSubmit »</em></li>
+                        </ul>
+                      </div>
+                      <a
+                        href="https://mail.google.com"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="w-full mt-2 px-3 py-2 bg-neutral-100 hover:bg-neutral-200 text-black border-2 border-black rounded-lg font-black text-xs flex items-center justify-center gap-1.5 shadow-[1px_1px_0px_#000] cursor-pointer"
+                      >
+                        <Mail className="w-3.5 h-3.5 text-red-600" />
+                        <span>2. Ouvrir Gmail</span>
+                      </a>
+                    </div>
+
+                    {/* Étape 3 */}
+                    <div className="p-3 bg-white rounded-xl border-2 border-black shadow-[2px_2px_0px_#000] flex flex-col justify-between">
+                      <div>
+                        <div className="text-[10px] font-mono font-black text-emerald-800 bg-emerald-200 px-2 py-0.5 rounded-md inline-block mb-1.5 border border-black">
+                          ÉTAPE 3
+                        </div>
+                        <h4 className="text-xs font-black text-black mb-1">
+                          Cliquer sur « Activate Form »
+                        </h4>
+                        <p className="text-[11px] text-neutral-600 mb-2">
+                          Dans l'e-mail de FormSubmit, cliquez sur le gros bouton vert <strong>« Activate Form »</strong>. Une fois fait, testez ici :
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={isSendingEmailTest}
+                        onClick={handleTestEmailNotification}
+                        className="w-full px-3 py-2 bg-emerald-400 hover:bg-emerald-300 text-black border-2 border-black rounded-lg font-black text-xs flex items-center justify-center gap-1.5 shadow-[1px_1px_0px_#000] active:translate-y-0.5 cursor-pointer"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-900" />
+                        <span>{isSendingEmailTest ? 'Envoi...' : '3. Tester l\'alerte en direct'}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Bannière de confirmation de l'alerte e-mail */}
+              {emailStatusMsg && (
+                <div className="p-3 bg-amber-50 border-b-2 border-black text-xs font-mono font-bold text-black flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-amber-700 shrink-0" />
+                    <span>{emailStatusMsg}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEmailStatusMsg('')}
+                    className="text-neutral-500 hover:text-black cursor-pointer p-1"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
 
               {/* Tiroir d'importation manuelle d'un ticket */}
               {showManualImport && (

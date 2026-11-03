@@ -356,7 +356,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
     category: 'applications',
     categoryLabel: 'Super App',
     badge: '5 €',
-    description: '29 mini-jeux réunis dans une seule application déguisée en calculatrice matricielle.',
+    description: '29 mini-jeux réunis dans une seule application déguisée en calculatrice matricielle. Tarif : 5 €.',
     sizeKb: 450,
     price: 5,
     isSuperApp: true
