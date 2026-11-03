@@ -1,7 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, ArrowRight, Check, Send, Ticket, Copy, CheckCheck, Gamepad2, LayoutGrid } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  Send,
+  Ticket,
+  Copy,
+  CheckCheck,
+  Gamepad2,
+  LayoutGrid,
+  KeyRound,
+  Lock,
+  Unlock,
+  Trash2,
+  X,
+  Search,
+  ShieldCheck,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  Plus
+} from 'lucide-react';
 import { CATALOG_ITEMS, CATEGORIES_CONFIG } from './data/catalog';
-import { CategoryKey } from './types';
+import { CategoryKey, StoredOrder } from './types';
 
 // Petit icône Python officiel et net
 function PythonIcon({ className = "w-5 h-5" }: { className?: string }) {
@@ -40,6 +61,148 @@ export default function App() {
   const [demandeLibre, setDemandeLibre] = useState('');
   const [receipt, setReceipt] = useState<OrderReceipt | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // --- ESPACE ADMINISTRATEUR (CODE SECRET 1324) ---
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState(false);
+  const [adminFilter, setAdminFilter] = useState<'tous' | 'En attente' | 'Prêt' | 'Terminé'>('tous');
+  const [adminSearch, setAdminSearch] = useState('');
+  const [copiedAll, setCopiedAll] = useState(false);
+
+  // Commandes persistées dans le localStorage
+  const [orders, setOrders] = useState<StoredOrder[]>(() => {
+    try {
+      const saved = localStorage.getItem('numsgames_orders');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return [];
+  });
+
+  const handlePinDigit = (digit: string) => {
+    if (pinInput.length >= 4) return;
+    const nextPin = pinInput + digit;
+    setPinInput(nextPin);
+    setPinError(false);
+
+    if (nextPin.length === 4) {
+      if (nextPin === '1324') {
+        setIsAdminUnlocked(true);
+        setPinError(false);
+      } else {
+        setPinError(true);
+        setTimeout(() => {
+          setPinInput('');
+          setPinError(false);
+        }, 800);
+      }
+    }
+  };
+
+  const handlePinBackspace = () => {
+    setPinInput((prev) => prev.slice(0, -1));
+    setPinError(false);
+  };
+
+  // Gestion de la saisie clavier pour le code PIN
+  useEffect(() => {
+    if (!isAdminOpen || isAdminUnlocked) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key >= '0' && e.key <= '9') {
+        handlePinDigit(e.key);
+      } else if (e.key === 'Backspace') {
+        handlePinBackspace();
+      } else if (e.key === 'Escape') {
+        setIsAdminOpen(false);
+        setPinInput('');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isAdminOpen, isAdminUnlocked, pinInput]);
+
+  const updateOrderStatus = (orderId: string, status: 'En attente' | 'Prêt' | 'Terminé') => {
+    const updated = orders.map((o) => (o.id === orderId ? { ...o, status } : o));
+    setOrders(updated);
+    try {
+      localStorage.setItem('numsgames_orders', JSON.stringify(updated));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const deleteOrder = (orderId: string) => {
+    const updated = orders.filter((o) => o.id !== orderId);
+    setOrders(updated);
+    try {
+      localStorage.setItem('numsgames_orders', JSON.stringify(updated));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const clearAllOrders = () => {
+    if (window.confirm('Voulez-vous vraiment effacer toutes les commandes enregistrées ?')) {
+      setOrders([]);
+      try {
+        localStorage.removeItem('numsgames_orders');
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  };
+
+  const addTestOrder = () => {
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const testOrder: StoredOrder = {
+      id: `ord_${Date.now()}`,
+      ticketId: `NG-${Math.floor(1000 + Math.random() * 9000)}`,
+      categoryTitle: 'Émulateurs',
+      prenom: 'Alexandre',
+      nom: 'Dupont',
+      items: ['Pokémon Version Cristal (Couleur)'],
+      demandeLibre: 'NumWorks blanche N0110',
+      totalPrice: '4 € (1 jeu couleur 4 €)',
+      date: dateStr,
+      status: 'En attente',
+    };
+    const updated = [testOrder, ...orders];
+    setOrders(updated);
+    try {
+      localStorage.setItem('numsgames_orders', JSON.stringify(updated));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const copyAllOrdersText = () => {
+    if (orders.length === 0) return;
+    const summary = orders
+      .map(
+        (o, idx) =>
+          `[#${o.ticketId}] ${o.prenom} ${o.nom} (${o.date})\n` +
+          `Statut : ${o.status.toUpperCase()} | Montant : ${o.totalPrice}\n` +
+          `Catégorie : ${o.categoryTitle}\n` +
+          `Programmes : ${o.items.join(', ')}\n` +
+          (o.demandeLibre ? `Précision : ${o.demandeLibre}\n` : '') +
+          `----------------------------------------`
+      )
+      .join('\n');
+    navigator.clipboard.writeText(summary);
+    setCopiedAll(true);
+    setTimeout(() => setCopiedAll(false), 2000);
+  };
 
   // Synchronisation du hash de navigation
   useEffect(() => {
@@ -166,6 +329,37 @@ export default function App() {
       totalPrice: priceText,
     };
 
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const newStoredOrder: StoredOrder = {
+      id: `ord_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      ticketId: newReceipt.ticketId,
+      categoryTitle: newReceipt.categoryTitle,
+      prenom: newReceipt.prenom,
+      nom: newReceipt.nom,
+      items: newReceipt.items,
+      demandeLibre: newReceipt.demandeLibre,
+      totalPrice: priceText,
+      date: dateStr,
+      status: 'En attente',
+    };
+
+    setOrders((prev) => {
+      const updated = [newStoredOrder, ...prev];
+      try {
+        localStorage.setItem('numsgames_orders', JSON.stringify(updated));
+      } catch (err) {
+        console.error(err);
+      }
+      return updated;
+    });
+
     setReceipt(newReceipt);
     goTo('ticket');
   };
@@ -177,6 +371,23 @@ export default function App() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const filteredOrders = orders.filter((o) => {
+    if (adminFilter !== 'tous' && o.status !== adminFilter) return false;
+    if (adminSearch.trim()) {
+      const q = adminSearch.toLowerCase().trim();
+      const matchName = `${o.prenom} ${o.nom}`.toLowerCase().includes(q);
+      const matchTicket = o.ticketId.toLowerCase().includes(q);
+      const matchItems = o.items.some((i) => i.toLowerCase().includes(q));
+      return matchName || matchTicket || matchItems;
+    }
+    return true;
+  });
+
+  const totalRevenue = orders.reduce((acc, o) => {
+    const match = o.totalPrice?.match(/(\d+)\s*€/);
+    return acc + (match ? parseInt(match[1], 10) : 0);
+  }, 0);
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-white text-neutral-950 flex flex-col font-sans select-none">
@@ -214,8 +425,20 @@ export default function App() {
             <div className="flex flex-col items-center justify-center my-auto py-2 text-center">
               
               {/* Grand Titre NumsGames en grand */}
-              <h1 className="text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-black tracking-tighter text-black leading-none mb-8">
-                Nums<span className="text-amber-500">Games</span>
+              <h1 className="text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-black tracking-tighter text-black leading-none mb-8 select-none relative inline-flex items-center justify-center">
+                <span>Nums<span className="text-amber-500">Games</span></span>
+                {/* Zone invisible au clic (située juste après le titre) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAdminOpen(true);
+                    setPinInput('');
+                    setPinError(false);
+                  }}
+                  className="w-10 h-10 opacity-0 cursor-default"
+                  aria-label="Zone secrète administrateur"
+                  tabIndex={-1}
+                />
               </h1>
 
               {/* LES TROIS PROPOSITIONS EN FORME DE CARRÉ ALIGNÉ (TACTILE NUMWORKS NOIR SUR BLANC) */}
@@ -829,6 +1052,409 @@ export default function App() {
 
         </div>
       </main>
+
+      {/* ZONE INVISIBLE SECRÈTE (Coin inférieur droit de l'écran d'accueil) */}
+      {currentPage === 'home' && (
+        <button
+          type="button"
+          onClick={() => {
+            setIsAdminOpen(true);
+            setPinInput('');
+            setPinError(false);
+          }}
+          className="fixed bottom-0 right-0 w-16 h-16 opacity-0 z-40 cursor-default"
+          aria-label="Zone secrète administrateur (coin bas-droit)"
+          tabIndex={-1}
+        />
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL / ESPACE ADMINISTRATEUR PROTÉGÉ PAR LE CODE 1324    */}
+      {/* ========================================================= */}
+      {isAdminOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          
+          {/* VUE 1 : SAISIE DU CODE PIN (1324) */}
+          {!isAdminUnlocked ? (
+            <div className="w-full max-w-sm bg-white border-3 border-black rounded-3xl p-6 shadow-[6px_6px_0px_#000] relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAdminOpen(false);
+                  setPinInput('');
+                  setPinError(false);
+                }}
+                className="absolute top-4 right-4 p-1.5 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-neutral-800 border-2 border-black shadow-[1px_1px_0px_#000] transition-colors cursor-pointer"
+                title="Fermer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              <div className="w-12 h-12 rounded-2xl bg-amber-100 border-2 border-black text-amber-700 flex items-center justify-center mx-auto mb-3 shadow-[2px_2px_0px_#000]">
+                <KeyRound className="w-6 h-6" />
+              </div>
+
+              <h2 className="text-xl font-black text-black mb-1">
+                Espace Réservé
+              </h2>
+              <p className="text-xs text-neutral-600 mb-5">
+                Entre le code PIN à 4 chiffres pour afficher les commandes
+              </p>
+
+              {/* Indicateurs visuels des 4 chiffres */}
+              <div className={`flex justify-center items-center gap-3 mb-6 transition-transform ${pinError ? 'animate-bounce' : ''}`}>
+                {[0, 1, 2, 3].map((index) => {
+                  const isFilled = pinInput.length > index;
+                  return (
+                    <div
+                      key={index}
+                      className={`w-4 h-4 rounded-full border-2 transition-all ${
+                        pinError
+                          ? 'bg-rose-500 border-rose-600 scale-110'
+                          : isFilled
+                          ? 'bg-black border-black scale-110'
+                          : 'bg-neutral-100 border-neutral-400'
+                      }`}
+                    />
+                  );
+                })}
+              </div>
+
+              {pinError && (
+                <div className="text-xs font-bold text-rose-600 mb-3 bg-rose-50 border border-rose-300 py-1 px-3 rounded-lg inline-block">
+                  Code erroné, réessaie !
+                </div>
+              )}
+
+              {/* Pavé numérique tactile et interactif */}
+              <div className="grid grid-cols-3 gap-2.5 max-w-[260px] mx-auto mb-4">
+                {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((num) => (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => handlePinDigit(num)}
+                    className="p-3.5 rounded-2xl bg-white hover:bg-neutral-100 active:bg-neutral-200 border-2 border-black text-lg font-mono font-black text-black shadow-[2px_2px_0px_#000] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer"
+                  >
+                    {num}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPinInput('');
+                    setPinError(false);
+                  }}
+                  className="p-3.5 rounded-2xl bg-neutral-100 hover:bg-neutral-200 active:bg-neutral-300 border-2 border-black text-xs font-mono font-black text-neutral-700 shadow-[2px_2px_0px_#000] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer flex items-center justify-center"
+                  title="Effacer tout"
+                >
+                  C
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePinDigit('0')}
+                  className="p-3.5 rounded-2xl bg-white hover:bg-neutral-100 active:bg-neutral-200 border-2 border-black text-lg font-mono font-black text-black shadow-[2px_2px_0px_#000] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer"
+                >
+                  0
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePinBackspace}
+                  className="p-3.5 rounded-2xl bg-neutral-100 hover:bg-neutral-200 active:bg-neutral-300 border-2 border-black text-sm font-mono font-black text-neutral-800 shadow-[2px_2px_0px_#000] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer flex items-center justify-center"
+                  title="Effacer le dernier chiffre"
+                >
+                  ⌫
+                </button>
+              </div>
+
+              <div className="text-[11px] text-neutral-500 font-mono">
+                Tu peux aussi taper le code au clavier
+              </div>
+            </div>
+          ) : (
+            /* VUE 2 : LISTE COMPLÈTE DES COMMANDES ACTUELLES */
+            <div className="w-full max-w-4xl bg-white border-3 border-black rounded-3xl shadow-[8px_8px_0px_#000] flex flex-col h-[90vh] max-h-[820px] overflow-hidden">
+              
+              {/* Entête du panneau admin */}
+              <div className="p-4 sm:p-5 border-b-2 border-black bg-neutral-50 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-emerald-100 border-2 border-black rounded-xl text-emerald-800 shadow-[1px_1px_0px_#000]">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg sm:text-xl font-black text-black">
+                        Commandes Actuelles
+                      </h2>
+                      <span className="text-[10px] font-mono font-black bg-emerald-200 border border-black px-2 py-0.5 rounded-full shadow-[1px_1px_0px_#000]">
+                        ADMIN VÉRIFIÉ
+                      </span>
+                    </div>
+                    <p className="text-xs text-neutral-600 font-medium">
+                      {orders.length} commande{orders.length > 1 ? 's' : ''} enregistrée{orders.length > 1 ? 's' : ''} au total
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  {orders.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={copyAllOrdersText}
+                      className="px-3 py-1.5 rounded-xl bg-white hover:bg-neutral-100 text-black border-2 border-black text-xs font-black flex items-center gap-1.5 shadow-[1px_1px_0px_#000] transition-colors cursor-pointer"
+                    >
+                      {copiedAll ? <CheckCheck className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedAll ? 'Copié !' : 'Copier tout'}</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAdminUnlocked(false);
+                      setIsAdminOpen(false);
+                      setPinInput('');
+                    }}
+                    className="px-3.5 py-1.5 rounded-xl bg-black hover:bg-neutral-800 text-white text-xs font-black flex items-center gap-1.5 shadow-[1px_1px_0px_rgba(0,0,0,0.3)] transition-colors cursor-pointer"
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>Verrouiller & Quitter</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Barre de statistiques rapides */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 sm:p-4 bg-white border-b-2 border-neutral-200 shrink-0">
+                <div className="p-2.5 rounded-xl bg-neutral-50 border-2 border-neutral-300">
+                  <div className="text-[10px] font-mono font-bold text-neutral-500 uppercase">Total Commandes</div>
+                  <div className="text-lg font-black text-black">{orders.length}</div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-amber-50 border-2 border-amber-300">
+                  <div className="text-[10px] font-mono font-bold text-amber-800 uppercase">Montant Total Estimé</div>
+                  <div className="text-lg font-black text-amber-900">{totalRevenue} €</div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-sky-50 border-2 border-sky-300">
+                  <div className="text-[10px] font-mono font-bold text-sky-800 uppercase">En Attente</div>
+                  <div className="text-lg font-black text-sky-900">
+                    {orders.filter((o) => o.status === 'En attente').length}
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-emerald-50 border-2 border-emerald-300">
+                  <div className="text-[10px] font-mono font-bold text-emerald-800 uppercase">Terminées / Réglées</div>
+                  <div className="text-lg font-black text-emerald-900">
+                    {orders.filter((o) => o.status === 'Terminé').length}
+                  </div>
+                </div>
+              </div>
+
+              {/* Barre de recherche et filtres de statut */}
+              <div className="p-3 sm:p-4 border-b-2 border-neutral-200 bg-neutral-50/50 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={adminSearch}
+                    onChange={(e) => setAdminSearch(e.target.value)}
+                    placeholder="Rechercher par nom d'élève, ticket #..."
+                    className="w-full pl-9 pr-3 py-1.5 bg-white border-2 border-neutral-300 focus:border-black rounded-xl text-xs font-medium text-black focus:outline-none"
+                  />
+                </div>
+
+                <div className="flex items-center gap-1 bg-white border-2 border-black p-1 rounded-xl text-xs shadow-[1px_1px_0px_#000]">
+                  {(['tous', 'En attente', 'Prêt', 'Terminé'] as const).map((filter) => {
+                    const count =
+                      filter === 'tous'
+                        ? orders.length
+                        : orders.filter((o) => o.status === filter).length;
+                    return (
+                      <button
+                        key={filter}
+                        type="button"
+                        onClick={() => setAdminFilter(filter)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                          adminFilter === filter
+                            ? 'bg-black text-white'
+                            : 'text-neutral-700 hover:text-black hover:bg-neutral-100'
+                        }`}
+                      >
+                        {filter === 'tous' ? 'Toutes' : filter} ({count})
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Liste défilante des commandes */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {filteredOrders.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <div className="w-12 h-12 rounded-2xl bg-neutral-100 border-2 border-black flex items-center justify-center mb-3 text-neutral-500 shadow-[2px_2px_0px_#000]">
+                      <AlertCircle className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-sm font-black text-black mb-1">
+                      {orders.length === 0
+                        ? 'Aucune commande enregistrée pour le moment'
+                        : 'Aucune commande ne correspond à ce filtre'}
+                    </h3>
+                    <p className="text-xs text-neutral-500 max-w-sm mb-4">
+                      {orders.length === 0
+                        ? 'Dès qu\'un élève valide son formulaire, sa commande apparaîtra ici avec son nom, ses jeux et le prix.'
+                        : 'Modifie tes critères de recherche ou réinitialise les filtres.'}
+                    </p>
+                    {orders.length === 0 && (
+                      <button
+                        type="button"
+                        onClick={addTestOrder}
+                        className="px-4 py-2 rounded-xl bg-amber-300 hover:bg-amber-400 text-black border-2 border-black font-black text-xs flex items-center gap-1.5 shadow-[2px_2px_0px_#000] cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Ajouter une commande test</span>
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  filteredOrders.map((order) => {
+                    return (
+                      <div
+                        key={order.id}
+                        className="p-4 rounded-2xl bg-white border-2 border-black shadow-[3px_3px_0px_#000] flex flex-col gap-2.5"
+                      >
+                        {/* Ligne 1 : Ticket, Date, Prix et Statut */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 pb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-black text-sm text-black bg-neutral-100 border border-neutral-400 px-2 py-0.5 rounded-md">
+                              #{order.ticketId}
+                            </span>
+                            <span className="text-[11px] font-mono text-neutral-500 flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {order.date}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono font-black bg-amber-300 text-black border border-black px-2.5 py-0.5 rounded-full shadow-[1px_1px_0px_#000]">
+                              {order.totalPrice}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => deleteOrder(order.id)}
+                              className="p-1.5 rounded-lg text-neutral-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-300 transition-colors cursor-pointer"
+                              title="Supprimer cette commande"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Ligne 2 : Nom de l'élève & Catégorie */}
+                        <div className="flex flex-wrap items-center justify-between gap-1">
+                          <div className="text-base font-black text-black">
+                            {order.prenom} {order.nom}
+                          </div>
+                          <span className="text-[11px] font-mono font-bold text-neutral-600 bg-neutral-100 border border-neutral-200 px-2 py-0.5 rounded-md">
+                            {order.categoryTitle}
+                          </span>
+                        </div>
+
+                        {/* Ligne 3 : Programmes choisis */}
+                        <div className="bg-neutral-50 p-2.5 rounded-xl border border-neutral-200">
+                          <div className="text-[10px] font-mono font-bold text-neutral-500 uppercase mb-1">
+                            Sélection demandée :
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {order.items.map((item, idx) => (
+                              <span
+                                key={idx}
+                                className="text-xs font-mono font-semibold bg-white border border-neutral-300 px-2 py-0.5 rounded-md text-black"
+                              >
+                                {item}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Remarque éventuelle */}
+                        {order.demandeLibre && (
+                          <div className="text-xs text-neutral-700 bg-amber-50/70 border border-amber-200 p-2 rounded-lg italic">
+                            <span className="font-bold not-italic font-mono text-[10px] text-amber-900 block">Précision :</span>
+                            {order.demandeLibre}
+                          </div>
+                        )}
+
+                        {/* Ligne 4 : Sélecteur de statut rapide */}
+                        <div className="flex items-center justify-between gap-2 pt-1">
+                          <span className="text-[11px] font-bold text-neutral-600">
+                            Statut actuel :
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => updateOrderStatus(order.id, 'En attente')}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-black border transition-all cursor-pointer ${
+                                order.status === 'En attente'
+                                  ? 'bg-amber-300 text-black border-black shadow-[1px_1px_0px_#000]'
+                                  : 'bg-neutral-50 text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                              }`}
+                            >
+                              ⏳ En attente
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updateOrderStatus(order.id, 'Prêt')}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-black border transition-all cursor-pointer ${
+                                order.status === 'Prêt'
+                                  ? 'bg-sky-300 text-black border-black shadow-[1px_1px_0px_#000]'
+                                  : 'bg-neutral-50 text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                              }`}
+                            >
+                              📦 Prêt
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updateOrderStatus(order.id, 'Terminé')}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-black border transition-all cursor-pointer ${
+                                order.status === 'Terminé'
+                                  ? 'bg-emerald-300 text-black border-black shadow-[1px_1px_0px_#000]'
+                                  : 'bg-neutral-50 text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                              }`}
+                            >
+                              ✅ Terminé
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Pied du panneau admin */}
+              <div className="p-3 sm:p-4 border-t-2 border-black bg-neutral-50 flex items-center justify-between gap-3 shrink-0">
+                <button
+                  type="button"
+                  onClick={addTestOrder}
+                  className="text-xs font-mono font-bold text-neutral-700 hover:text-black flex items-center gap-1 cursor-pointer underline"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Ajouter une commande test</span>
+                </button>
+
+                {orders.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={clearAllOrders}
+                    className="text-xs font-mono font-bold text-rose-600 hover:text-rose-800 flex items-center gap-1 cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Tout effacer</span>
+                  </button>
+                )}
+              </div>
+
+            </div>
+          )}
+
+        </div>
+      )}
 
     </div>
   );

@@ -16,3 +16,16 @@ export interface CatalogItem {
   isSuperApp?: boolean;
 }
 
+export interface StoredOrder {
+  id: string;
+  ticketId: string;
+  categoryTitle: string;
+  prenom: string;
+  nom: string;
+  items: string[];
+  demandeLibre?: string;
+  totalPrice: string;
+  date: string;
+  status: 'En attente' | 'Prêt' | 'Terminé';
+}
+
