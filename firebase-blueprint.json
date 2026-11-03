@@ -1,0 +1,67 @@
+{
+  "entities": {
+    "Order": {
+      "title": "Order",
+      "description": "Une commande passée sur NumsGames pour une calculatrice NumWorks",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Identifiant unique de la commande"
+        },
+        "ticketId": {
+          "type": "string",
+          "description": "Numéro de ticket court ex: NG-1234"
+        },
+        "categoryTitle": {
+          "type": "string",
+          "description": "Titre de la catégorie commandée"
+        },
+        "prenom": {
+          "type": "string",
+          "description": "Prénom du client"
+        },
+        "nom": {
+          "type": "string",
+          "description": "Nom du client"
+        },
+        "items": {
+          "type": "array",
+          "description": "Liste des noms de jeux ou logiciels commandés"
+        },
+        "demandeLibre": {
+          "type": "string",
+          "description": "Précisions ou demandes libres éventuelles"
+        },
+        "totalPrice": {
+          "type": "string",
+          "description": "Prix total calculé"
+        },
+        "date": {
+          "type": "string",
+          "description": "Date lisible de commande"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["En attente", "Prêt", "Terminé"],
+          "description": "Statut de la commande"
+        }
+      },
+      "required": [
+        "ticketId",
+        "categoryTitle",
+        "prenom",
+        "nom",
+        "items",
+        "totalPrice",
+        "status"
+      ]
+    }
+  },
+  "firestore": {
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Collection globale des commandes synchronisées entre téléphone et PC"
+    }
+  }
+}

@@ -1,0 +1,34 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default-deny all by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll(['ticketId', 'categoryTitle', 'prenom', 'nom', 'items', 'totalPrice', 'status'])
+        && data.ticketId is string && data.ticketId.size() > 0 && data.ticketId.size() <= 32
+        && data.categoryTitle is string && data.categoryTitle.size() > 0 && data.categoryTitle.size() <= 100
+        && data.prenom is string && data.prenom.size() > 0 && data.prenom.size() <= 100
+        && data.nom is string && data.nom.size() > 0 && data.nom.size() <= 100
+        && data.items is list && data.items.size() > 0 && data.items.size() <= 50
+        && data.totalPrice is string && data.totalPrice.size() > 0 && data.totalPrice.size() <= 100
+        && data.status is string && (data.status == 'En attente' || data.status == 'Prêt' || data.status == 'Terminé')
+        && (!('demandeLibre' in data) || (data.demandeLibre is string && data.demandeLibre.size() <= 1000))
+        && (!('date' in data) || (data.date is string && data.date.size() <= 100))
+        && (!('id' in data) || (data.id is string && data.id.size() <= 128));
+    }
+
+    match /orders/{orderId} {
+      allow read: if true;
+      allow create: if isValidId(orderId) && isValidOrder(request.resource.data);
+      allow update: if isValidId(orderId) && isValidOrder(request.resource.data);
+      allow delete: if isValidId(orderId);
+    }
+  }
+}

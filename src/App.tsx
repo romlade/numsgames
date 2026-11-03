@@ -19,8 +19,13 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
-  Plus
+  Plus,
+  Cloud,
+  FileText
 } from 'lucide-react';
+
+import { collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from './firebase';
 import { CATALOG_ITEMS, CATEGORIES_CONFIG } from './data/catalog';
 import { CategoryKey, StoredOrder } from './types';
 
@@ -71,7 +76,7 @@ export default function App() {
   const [adminSearch, setAdminSearch] = useState('');
   const [copiedAll, setCopiedAll] = useState(false);
 
-  // Commandes persistées dans le localStorage
+  // Commandes persistées dans Firebase Firestore (avec secours localStorage)
   const [orders, setOrders] = useState<StoredOrder[]>(() => {
     try {
       const saved = localStorage.getItem('numsgames_orders');
@@ -83,6 +88,44 @@ export default function App() {
     }
     return [];
   });
+  const [isCloudConnected, setIsCloudConnected] = useState(false);
+  const [manualTicketText, setManualTicketText] = useState('');
+  const [showManualImport, setShowManualImport] = useState(false);
+  const [importSuccessMsg, setImportSuccessMsg] = useState('');
+
+  // Synchronisation en temps réel via Firestore onSnapshot
+  useEffect(() => {
+    const ordersCol = collection(db, 'orders');
+    const unsubscribe = onSnapshot(
+      ordersCol,
+      (snapshot) => {
+        setIsCloudConnected(true);
+        const fetchedOrders: StoredOrder[] = [];
+        snapshot.forEach((docSnap) => {
+          fetchedOrders.push(docSnap.data() as StoredOrder);
+        });
+        // Trier par date / id décroissant (les plus récentes en premier)
+        fetchedOrders.sort((a, b) => b.id.localeCompare(a.id));
+        setOrders(fetchedOrders);
+        try {
+          localStorage.setItem('numsgames_orders', JSON.stringify(fetchedOrders));
+        } catch (e) {
+          console.error(e);
+        }
+      },
+      (error) => {
+        console.warn('Erreur Firestore onSnapshot:', error);
+        setIsCloudConnected(false);
+        try {
+          handleFirestoreError(error, OperationType.GET, 'orders');
+        } catch {
+          // Secours local conservé
+        }
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
 
   const handlePinDigit = (digit: string) => {
     if (pinInput.length >= 4) return;
@@ -126,7 +169,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isAdminOpen, isAdminUnlocked, pinInput]);
 
-  const updateOrderStatus = (orderId: string, status: 'En attente' | 'Prêt' | 'Terminé') => {
+  const updateOrderStatus = async (orderId: string, status: 'En attente' | 'Prêt' | 'Terminé') => {
     const updated = orders.map((o) => (o.id === orderId ? { ...o, status } : o));
     setOrders(updated);
     try {
@@ -134,9 +177,14 @@ export default function App() {
     } catch (e) {
       console.error(e);
     }
+    try {
+      await updateDoc(doc(db, 'orders', orderId), { status });
+    } catch (e) {
+      console.error('Erreur mise à jour Firestore:', e);
+    }
   };
 
-  const deleteOrder = (orderId: string) => {
+  const deleteOrder = async (orderId: string) => {
     const updated = orders.filter((o) => o.id !== orderId);
     setOrders(updated);
     try {
@@ -144,20 +192,33 @@ export default function App() {
     } catch (e) {
       console.error(e);
     }
+    try {
+      await deleteDoc(doc(db, 'orders', orderId));
+    } catch (e) {
+      console.error('Erreur suppression Firestore:', e);
+    }
   };
 
-  const clearAllOrders = () => {
-    if (window.confirm('Voulez-vous vraiment effacer toutes les commandes enregistrées ?')) {
+  const clearAllOrders = async () => {
+    if (window.confirm('Voulez-vous vraiment effacer toutes les commandes enregistrées sur le Cloud et en local ?')) {
+      const toDelete = [...orders];
       setOrders([]);
       try {
         localStorage.removeItem('numsgames_orders');
       } catch (e) {
         console.error(e);
       }
+      try {
+        for (const o of toDelete) {
+          await deleteDoc(doc(db, 'orders', o.id));
+        }
+      } catch (e) {
+        console.error('Erreur suppression globale Firestore:', e);
+      }
     }
   };
 
-  const addTestOrder = () => {
+  const addTestOrder = async () => {
     const now = new Date();
     const dateStr = now.toLocaleDateString('fr-FR', {
       day: 'numeric',
@@ -166,7 +227,7 @@ export default function App() {
       minute: '2-digit',
     });
     const testOrder: StoredOrder = {
-      id: `ord_${Date.now()}`,
+      id: `ord_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       ticketId: `NG-${Math.floor(1000 + Math.random() * 9000)}`,
       categoryTitle: 'Émulateurs',
       prenom: 'Alexandre',
@@ -177,20 +238,103 @@ export default function App() {
       date: dateStr,
       status: 'En attente',
     };
-    const updated = [testOrder, ...orders];
-    setOrders(updated);
     try {
-      localStorage.setItem('numsgames_orders', JSON.stringify(updated));
+      await setDoc(doc(db, 'orders', testOrder.id), testOrder);
     } catch (e) {
-      console.error(e);
+      console.warn('Firestore fallback local:', e);
+      const updated = [testOrder, ...orders];
+      setOrders(updated);
+      try {
+        localStorage.setItem('numsgames_orders', JSON.stringify(updated));
+      } catch (err) {
+        console.error(err);
+      }
     }
+  };
+
+  const handleManualImport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualTicketText.trim()) return;
+
+    // Détection de format texte ou JSON
+    let orderToImport: StoredOrder | null = null;
+    const raw = manualTicketText.trim();
+    if (raw.startsWith('{') && raw.endsWith('}')) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed.ticketId && parsed.prenom) {
+          orderToImport = {
+            id: parsed.id || `ord_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            ticketId: parsed.ticketId,
+            categoryTitle: parsed.categoryTitle || 'NumWorks',
+            prenom: parsed.prenom,
+            nom: parsed.nom || '',
+            items: Array.isArray(parsed.items) ? parsed.items : [String(parsed.items)],
+            demandeLibre: parsed.demandeLibre || '',
+            totalPrice: parsed.totalPrice || '2 €',
+            date: parsed.date || new Date().toLocaleDateString('fr-FR'),
+            status: parsed.status || 'En attente',
+          };
+        }
+      } catch {
+        // Poursuivre le parsing manuel
+      }
+    }
+
+    if (!orderToImport) {
+      const ticketMatch = raw.match(/#?(NG-\d+)/i) || raw.match(/TICKET\s+#?([A-Z0-9-]+)/i);
+      const ticketId = ticketMatch ? ticketMatch[1].toUpperCase() : `NG-${Math.floor(1000 + Math.random() * 9000)}`;
+      const nomMatch = raw.match(/(?:Nom|ELEVE)\s*:\s*([^\n\r]+)/i);
+      const fullName = nomMatch ? nomMatch[1].trim() : 'Élève';
+      const parts = fullName.split(' ');
+      const prenom = parts[0] || 'Élève';
+      const nom = parts.slice(1).join(' ') || '';
+      const catMatch = raw.match(/Cat[ée]gorie\s*:\s*([^\n\r]+)/i);
+      const categoryTitle = catMatch ? catMatch[1].trim() : 'NumWorks';
+      const jeuxMatch = raw.match(/(?:Jeux|PROGRAMMES)\s*:\s*([^\n\r]+)/i);
+      const items = jeuxMatch ? jeuxMatch[1].split(',').map((s) => s.trim()) : ['Sélection importée'];
+      const prixMatch = raw.match(/Prix\s*:\s*([^\n\r]+)/i);
+      const totalPrice = prixMatch ? prixMatch[1].trim() : '2 €';
+
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('fr-FR', {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      orderToImport = {
+        id: `ord_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        ticketId,
+        categoryTitle,
+        prenom,
+        nom,
+        items,
+        totalPrice,
+        date: dateStr,
+        status: 'En attente',
+      };
+    }
+
+    try {
+      await setDoc(doc(db, 'orders', orderToImport.id), orderToImport);
+    } catch {
+      setOrders((prev) => [orderToImport!, ...prev]);
+    }
+    setImportSuccessMsg(`Commande #${orderToImport.ticketId} importée avec succès !`);
+    setManualTicketText('');
+    setTimeout(() => {
+      setImportSuccessMsg('');
+      setShowManualImport(false);
+    }, 1500);
   };
 
   const copyAllOrdersText = () => {
     if (orders.length === 0) return;
     const summary = orders
       .map(
-        (o, idx) =>
+        (o) =>
           `[#${o.ticketId}] ${o.prenom} ${o.nom} (${o.date})\n` +
           `Statut : ${o.status.toUpperCase()} | Montant : ${o.totalPrice}\n` +
           `Catégorie : ${o.categoryTitle}\n` +
@@ -350,8 +494,9 @@ export default function App() {
       status: 'En attente',
     };
 
+    // 1. Sauvegarde locale immédiate
     setOrders((prev) => {
-      const updated = [newStoredOrder, ...prev];
+      const updated = [newStoredOrder, ...prev.filter((o) => o.id !== newStoredOrder.id)];
       try {
         localStorage.setItem('numsgames_orders', JSON.stringify(updated));
       } catch (err) {
@@ -359,6 +504,15 @@ export default function App() {
       }
       return updated;
     });
+
+    // 2. Synchronisation instantanée sur le Cloud Firestore (pour que la commande apparaisse sur l'ordi de Roman)
+    try {
+      setDoc(doc(db, 'orders', newStoredOrder.id), newStoredOrder).catch((err) => {
+        console.warn('Erreur transmission Firestore:', err);
+      });
+    } catch (err) {
+      console.warn('Erreur Firestore:', err);
+    }
 
     setReceipt(newReceipt);
     goTo('ticket');
@@ -999,14 +1153,11 @@ export default function App() {
                   <Check className="w-6 h-6 stroke-[3]" />
                 </div>
 
-                <div className="text-black font-mono text-xs font-black uppercase tracking-wider mb-1">
-                  Commande validée avec succès !
-                </div>
-                <h2 className="text-2xl font-black text-black mb-4">
+                <h2 className="text-2xl font-black text-black mb-3">
                   Ticket #{receipt.ticketId}
                 </h2>
 
-                <div className="bg-neutral-50 p-4 rounded-xl border-2 border-black text-left font-mono text-xs text-black space-y-1.5 mb-5 shadow-[inset_0_2px_4px_rgba(0,0,0,0.06)]">
+                <div className="bg-neutral-50 p-4 rounded-xl border-2 border-black text-left font-mono text-xs text-black space-y-1.5 mb-4 shadow-[inset_0_2px_4px_rgba(0,0,0,0.06)]">
                   <div>&gt; CATEGORIE : {receipt.categoryTitle}</div>
                   <div>&gt; ELEVE : {receipt.prenom} {receipt.nom}</div>
                   <div>&gt; PROGRAMMES : {receipt.items.join(', ')}</div>
@@ -1014,22 +1165,22 @@ export default function App() {
                     <div className="text-black font-black bg-amber-200 inline-block px-1 rounded">&gt; PRIX : {receipt.totalPrice}</div>
                   )}
                   <div className="text-emerald-700 pt-1 font-bold">
-                    &gt; STATUT : Prêt pour le dépôt demain au lycée
+                    &gt; STATUT : Prêt pour le dépôt au lycée
                   </div>
                 </div>
 
-                <div className="text-xs text-neutral-800 bg-amber-50 border-2 border-black p-3 rounded-xl mb-6 text-left shadow-[2px_2px_0px_#000]">
-                  <strong>Consigne avant de me donner ta calculatrice :</strong> Écris ton nom ({receipt.prenom} {receipt.nom}) et le code <strong>#{receipt.ticketId}</strong> sur un morceau de scotch ou étiquette au dos de ta calculatrice. Tu paies {receipt.totalPrice || 'en main propre'} au moment où tu me la donnes.
+                <div className="text-xs text-neutral-800 bg-amber-50 border-2 border-black p-3 rounded-xl mb-5 text-left shadow-[2px_2px_0px_#000]">
+                  <strong>Consigne avant de me donner ta calculatrice :</strong> Écris ton nom ({receipt.prenom} {receipt.nom}) et le code <strong>#{receipt.ticketId}</strong> sur un morceau de scotch au dos de ta calculatrice. Tu paies {receipt.totalPrice || 'en main propre'} au moment où tu me la donnes.
                 </div>
 
-                <div className="flex items-center justify-center gap-3">
+                <div className="flex flex-wrap items-center justify-center gap-2.5">
                   <button
                     type="button"
                     onClick={copyReceipt}
-                    className="px-4 py-2.5 bg-neutral-100 hover:bg-neutral-200 text-black border-2 border-black rounded-xl text-xs font-black flex items-center gap-1.5 transition-colors cursor-pointer shadow-[2px_2px_0px_#000]"
+                    className="px-3.5 py-2.5 bg-neutral-100 hover:bg-neutral-200 text-black border-2 border-black rounded-xl text-xs font-black flex items-center gap-1.5 transition-colors cursor-pointer shadow-[2px_2px_0px_#000]"
                   >
                     {copied ? <CheckCheck className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copied ? 'Copié !' : 'Copier le ticket'}</span>
+                    <span>{copied ? 'Copié !' : 'Copier le texte'}</span>
                   </button>
 
                   <button
@@ -1040,9 +1191,9 @@ export default function App() {
                       setDemandeLibre('');
                       goTo('home');
                     }}
-                    className="px-5 py-2.5 bg-black hover:bg-neutral-800 text-white font-black rounded-xl text-xs transition-colors cursor-pointer shadow-[2px_2px_0px_rgba(0,0,0,0.2)]"
+                    className="px-4 py-2.5 bg-black hover:bg-neutral-800 text-white font-black rounded-xl text-xs transition-colors cursor-pointer shadow-[2px_2px_0px_rgba(0,0,0,0.2)]"
                   >
-                    Retour aux 3 propositions
+                    Retour à l'accueil
                   </button>
                 </div>
 
@@ -1188,14 +1339,33 @@ export default function App() {
                       <span className="text-[10px] font-mono font-black bg-emerald-200 border border-black px-2 py-0.5 rounded-full shadow-[1px_1px_0px_#000]">
                         ADMIN VÉRIFIÉ
                       </span>
+                      {isCloudConnected ? (
+                        <span className="text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-400 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-[1px_1px_0px_#000]">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                          <span>Sync Téléphone & PC Active</span>
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-mono font-bold bg-neutral-200 text-neutral-700 border border-neutral-400 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <span>Secours Local</span>
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-neutral-600 font-medium">
-                      {orders.length} commande{orders.length > 1 ? 's' : ''} enregistrée{orders.length > 1 ? 's' : ''} au total
+                      {orders.length} commande{orders.length > 1 ? 's' : ''} enregistrée{orders.length > 1 ? 's' : ''} au total · Synchronisées en direct
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setShowManualImport(!showManualImport)}
+                    className="px-3 py-1.5 rounded-xl bg-white hover:bg-neutral-100 text-black border-2 border-black text-xs font-black flex items-center gap-1.5 shadow-[1px_1px_0px_#000] transition-colors cursor-pointer"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-neutral-700" />
+                    <span>{showManualImport ? 'Masquer import' : 'Importer ticket'}</span>
+                  </button>
+
                   {orders.length > 0 && (
                     <button
                       type="button"
@@ -1221,6 +1391,40 @@ export default function App() {
                   </button>
                 </div>
               </div>
+
+              {/* Tiroir d'importation manuelle d'un ticket */}
+              {showManualImport && (
+                <div className="p-3 bg-amber-50 border-b-2 border-black">
+                  <form onSubmit={handleManualImport} className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-mono font-bold text-black flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5 text-amber-700" />
+                        <span>Coller un texte de ticket ou un QR code copié :</span>
+                      </label>
+                      {importSuccessMsg && (
+                        <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-400">
+                          {importSuccessMsg}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={manualTicketText}
+                        onChange={(e) => setManualTicketText(e.target.value)}
+                        placeholder="Ex: TICKET #NG-1234 | Dupont Marc | Pokémon Cristal | 4 €..."
+                        className="flex-1 px-3 py-1.5 bg-white border-2 border-black rounded-xl text-xs font-mono focus:outline-none"
+                      />
+                      <button
+                        type="submit"
+                        className="px-4 py-1.5 bg-black hover:bg-neutral-800 text-white text-xs font-black rounded-xl shadow-[1px_1px_0px_rgba(0,0,0,0.3)] cursor-pointer"
+                      >
+                        Enregistrer
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
 
               {/* Barre de statistiques rapides */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 sm:p-4 bg-white border-b-2 border-neutral-200 shrink-0">
