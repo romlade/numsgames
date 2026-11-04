@@ -399,6 +399,7 @@ export default function App() {
   const [showTelegramTokenMask, setShowTelegramTokenMask] = useState(false);
   const [telegramStatusMsg, setTelegramStatusMsg] = useState('');
   const [isCheckingTelegram, setIsCheckingTelegram] = useState(false);
+  const [telegramSavedBadge, setTelegramSavedBadge] = useState(false);
   const [lastTestOrder, setLastTestOrder] = useState<StoredOrder | null>(null);
   const isFirstFirestoreLoadRef = useRef(true);
   const cloudTelegramTokenRef = useRef<string>(getSavedTelegramToken());
@@ -455,11 +456,26 @@ export default function App() {
         // Trier par date / id décroissant (les plus récentes en premier)
         fetchedOrders.sort((a, b) => b.id.localeCompare(a.id));
 
-        // Alerte sonore si une nouvelle commande arrive en direct sur l'ordinateur
+        // Alerte sonore et relais automatique Telegram si Roman a une session ouverte
         if (!isFirstFirestoreLoadRef.current) {
-          const hasNewOrder = snapshot.docChanges().some((change) => change.type === 'added');
-          if (hasNewOrder) {
+          const addedChanges = snapshot.docChanges().filter((change) => change.type === 'added');
+          if (addedChanges.length > 0) {
             playNotificationChime();
+
+            // Relais de sécurité : si le client n'a pas pu joindre Telegram directement, la session ouverte le relaie
+            addedChanges.forEach(async (change) => {
+              const ord = change.doc.data() as StoredOrder;
+              if (!ord.telegramSent) {
+                const token = cloudTelegramTokenRef.current || getSavedTelegramToken();
+                const chat = cloudTelegramChatIdRef.current || getSavedTelegramChatId() || '8305493071';
+                if (token && chat) {
+                  const res = await sendTelegramOrderNotification(ord, chat, token);
+                  if (res.success) {
+                    updateDoc(doc(db, 'orders', ord.id), { telegramSent: true }).catch(() => {});
+                  }
+                }
+              }
+            });
           }
         }
         isFirstFirestoreLoadRef.current = false;
@@ -585,15 +601,12 @@ export default function App() {
         telegramChatId: cleanedChatId,
         updatedAt: new Date().toISOString(),
       });
+      setTelegramSavedBadge(true);
       setTelegramStatusMsg(cleanedToken ? `✅ Configuration Telegram enregistrée (Cloud Firestore + Local) !` : 'Configuration réinitialisée.');
+      setTimeout(() => setTelegramSavedBadge(false), 8000);
     } catch (err) {
       console.warn('Erreur sauvegarde settings notifications Firestore:', err);
       setTelegramStatusMsg(cleanedToken ? `✅ Configuration enregistrée localement (Cloud: ${String(err)})` : 'Configuration réinitialisée.');
-    }
-
-    setTimeout(() => setTelegramStatusMsg(''), 4000);
-    if (cleanedToken && cleanedChatId) {
-      handleTestTelegramNotification(cleanedChatId, cleanedToken);
     }
   };
 
@@ -1039,7 +1052,9 @@ export default function App() {
 
       if (targetToken && targetChat) {
         const tgRes = await sendTelegramOrderNotification(newStoredOrder, targetChat, targetToken);
-        if (!tgRes.success) {
+        if (tgRes.success) {
+          updateDoc(doc(db, 'orders', newStoredOrder.id), { telegramSent: true }).catch(() => {});
+        } else {
           console.warn('Erreur notification Telegram:', tgRes.message);
         }
       } else {
@@ -2369,6 +2384,13 @@ export default function App() {
                             {isCheckingTelegram ? 'Détection...' : 'Détecter Chat ID'}
                           </button>
                         </div>
+
+                        {telegramSavedBadge && (
+                          <div className="mt-2 p-2.5 bg-emerald-100 border-2 border-emerald-600 rounded-lg text-emerald-950 font-bold text-xs flex items-center gap-1.5 shadow-[1px_1px_0px_#000]">
+                            <span className="text-base shrink-0">✅</span>
+                            <span>Configuration Telegram enregistrée (Cloud Firestore + Local) !</span>
+                          </div>
+                        )}
                       </form>
                     </div>
                   </div>

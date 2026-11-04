@@ -45,6 +45,10 @@
           "type": "string",
           "enum": ["En attente", "Prêt", "Terminé"],
           "description": "Statut de la commande"
+        },
+        "telegramSent": {
+          "type": "boolean",
+          "description": "Indique si la notification Telegram a été transmise avec succès"
         }
       },
       "required": [

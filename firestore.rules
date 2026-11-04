@@ -21,7 +21,8 @@ service cloud.firestore {
         && data.status is string && (data.status == 'En attente' || data.status == 'Prêt' || data.status == 'Terminé')
         && (!('demandeLibre' in data) || (data.demandeLibre is string && data.demandeLibre.size() <= 1000))
         && (!('date' in data) || (data.date is string && data.date.size() <= 100))
-        && (!('id' in data) || (data.id is string && data.id.size() <= 128));
+        && (!('id' in data) || (data.id is string && data.id.size() <= 128))
+        && (!('telegramSent' in data) || (data.telegramSent is bool));
     }
 
     function isValidSetting(data) {

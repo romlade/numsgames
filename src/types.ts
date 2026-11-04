@@ -27,5 +27,6 @@ export interface StoredOrder {
   totalPrice: string;
   date: string;
   status: 'En attente' | 'Prêt' | 'Terminé';
+  telegramSent?: boolean;
 }
 
