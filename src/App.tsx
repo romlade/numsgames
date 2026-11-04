@@ -363,7 +363,7 @@ export default function App() {
   const [mobileStep, setMobileStep] = useState<'select' | 'details'>('select');
   const [mobileShowLcd, setMobileShowLcd] = useState(false);
 
-  // --- ESPACE ADMINISTRATEUR (CODE SECRET 1324) ---
+  // --- ESPACE ADMINISTRATEUR (CODE SECRET 13249999) ---
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
   const [pinInput, setPinInput] = useState('');
@@ -639,13 +639,13 @@ export default function App() {
   };
 
   const handlePinDigit = (digit: string) => {
-    if (pinInput.length >= 4) return;
+    if (pinInput.length >= 8) return;
     const nextPin = pinInput + digit;
     setPinInput(nextPin);
     setPinError(false);
 
-    if (nextPin.length === 4) {
-      if (nextPin === '1324') {
+    if (nextPin.length === 8) {
+      if (nextPin === '13249999') {
         setIsAdminUnlocked(true);
         setPinError(false);
       } else {
@@ -1883,12 +1883,12 @@ export default function App() {
       )}
 
       {/* ========================================================= */}
-      {/* MODAL / ESPACE ADMINISTRATEUR PROTÉGÉ PAR LE CODE 1324    */}
+      {/* MODAL / ESPACE ADMINISTRATEUR PROTÉGÉ PAR LE CODE 13249999 */}
       {/* ========================================================= */}
       {isAdminOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           
-          {/* VUE 1 : SAISIE DU CODE PIN (1324) */}
+          {/* VUE 1 : SAISIE DU CODE PIN (13249999) */}
           {!isAdminUnlocked ? (
             <div className="w-full max-w-sm bg-white border-3 border-black rounded-3xl p-6 shadow-[6px_6px_0px_#000] relative">
               <button
@@ -1912,17 +1912,17 @@ export default function App() {
                 Espace Réservé
               </h2>
               <p className="text-xs text-neutral-600 mb-5">
-                Entre le code PIN à 4 chiffres pour afficher les commandes
+                Entre le code PIN à 8 chiffres pour afficher les commandes
               </p>
 
-              {/* Indicateurs visuels des 4 chiffres */}
-              <div className={`flex justify-center items-center gap-3 mb-6 transition-transform ${pinError ? 'animate-bounce' : ''}`}>
-                {[0, 1, 2, 3].map((index) => {
+              {/* Indicateurs visuels des 8 chiffres */}
+              <div className={`flex justify-center items-center gap-2 sm:gap-2.5 mb-6 transition-transform ${pinError ? 'animate-bounce' : ''}`}>
+                {[0, 1, 2, 3, 4, 5, 6, 7].map((index) => {
                   const isFilled = pinInput.length > index;
                   return (
                     <div
                       key={index}
-                      className={`w-4 h-4 rounded-full border-2 transition-all ${
+                      className={`w-3.5 h-3.5 rounded-full border-2 transition-all ${
                         pinError
                           ? 'bg-rose-500 border-rose-600 scale-110'
                           : isFilled
